@@ -1,0 +1,22 @@
+[user]
+	name = Dariusz Dwornikowski
+  email = dariusz.dwornikowski@cs.put.poznan.pl
+[color] 
+  diff = auto 
+  status = auto 
+  branch = auto 
+[format]
+  pretty = %Cblue%h%Creset %Cgreen[%ar]%Creset (%an) %s
+[alias] 
+  ci = commit -a
+  a = add 
+  s = status 
+  co  = checkout
+  graph = log --graph --decorate --pretty=format:\"%C(red bold)%h%x09%Cgreen%d%Creset%x20%s%x20%Cblue(%an)%Creset\"
+  unstage = reset HEAD --
+  qpl = log --pretty=\"%Cblue%h%Creset %Cgreen[%cr]%Creset %s\" origin/production..origin/master
+[push]
+	default = simple
+[rerere]
+  enabled = true
+  autoupdate = true

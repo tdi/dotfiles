@@ -1,0 +1,39 @@
+[mentors]
+fqdn = mentors.debian.net
+incoming = /upload
+method = http
+allow_unsigned_uploads = 0
+progress_indicator = 2
+# Allow uploads for UNRELEASED packages
+allowed_distributions = .*
+[mentors-ftp]
+fqdn = mentors.debian.net
+login = anonymous
+progress_indicator = 2
+passive_ftp = 1
+incoming = /
+method = ftp
+allow_unsigned_uploads = 0
+# Allow uploads for UNRELEASED packages
+allowed_distributions = .*
+
+[ftp-eu]
+fqdn                    = ftp.eu.upload.debian.org
+method                  = ftp
+incoming                = /pub/UploadQueue/
+login                   = anonymous
+allow_dcut              = 1
+
+[ftp-master]
+fqdn                    = ftp.upload.debian.org
+incoming                = /pub/UploadQueue/
+login                   = anonymous
+allow_dcut              = 1
+method                  = ftp
+
+[local]
+method = local
+incoming = /home/tdi/debian/archive/mini-dinstall/incoming
+allow_non-us_software = 1
+run_dinstall = 0
+post_upload_command = mini-dinstall --batch
