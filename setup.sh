@@ -29,7 +29,7 @@ DOTFILES_BACKUP=$(mktemp -d $HOME/dotfiles_backupXXXX)
 echo "Saving backup in $DOTFILES_BACKUP"
 cd $DOTFILES
 
-files="bashrc bash gitconfig zshrc zsh_custom devscripts dput.cf xinitrc"
+files="bashrc bash gitconfig zshrc zsh_custom devscripts dput.cf xinitrc dircolors"
 
 
 for file in $files; do
