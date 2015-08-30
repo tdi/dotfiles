@@ -3,12 +3,6 @@ export DEBFULLNAME="Dariusz Dwornikowski"
 export GOPATH=$HOME/dev/go
 export LC_MESSAGES=en_GB.UTF-8
 
-if [[ -x `which wmname` ]]; 
-then 
-  wmname LG3D
-fi
-export DE='xfce'
-#xhost +localhost 
 if [ -n "$TMUX" ]; then 
   TERM='screen-256color'
 fi
@@ -28,7 +22,6 @@ alias dquilt="quilt --quiltrc=${HOME}/.quiltrc-dpkg"
 alias ls='ls --color=auto'
 alias ipy='ipython'
 alias ipy2='ipython2'
-alias startx='startx -- vt01'
 alias grep='grep --color=auto'
 alias n="nvim"
 export TODOTXT_DEFAULT_ACTION=ls
@@ -40,16 +33,8 @@ export BSTINPUTS=.$HOME/share/Bst:
 export BIBINPUTS=.:$HOME/share/Bib:
 export PATH
 
-# Touchpad
-if [[ -x `which xinput` ]];
-then
-  xinput set-prop 'TPPS/2 IBM TrackPoint' "Evdev Wheel Emulation" 1
-  xinput set-prop 'TPPS/2 IBM TrackPoint' "Evdev Wheel Emulation Button" 2
-  xinput set-prop 'TPPS/2 IBM TrackPoint' "Evdev Wheel Emulation Timeout" 200
-fi
 
 PATH=$PATH:$HOME/.rvm/bin # Add RVM to PATH for scripting
-
 
 if [[ -x `which gpg-agent` ]]; 
 then 
