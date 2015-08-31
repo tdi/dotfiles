@@ -1,6 +1,3 @@
-export DEBEMAIL="dariusz.dwornikowski@cs.put.poznan.pl"
-export DEBFULLNAME="Dariusz Dwornikowski"
-export GOPATH=$HOME/dev/go
 export LC_MESSAGES=en_GB.UTF-8
 
 if [ -n "$TMUX" ]; then 
@@ -9,6 +6,7 @@ fi
 if [ -z "$DISPLAY" ]; then
   TERM='xterm-color'
 fi
+
 export TERM
 export EDITOR=vim
 export LESS="-R"
@@ -18,23 +16,12 @@ if [ -f $HOME/.dircolors ]; then
 fi
 
 # Aliases
-alias dquilt="quilt --quiltrc=${HOME}/.quiltrc-dpkg"
 alias ls='ls --color=auto'
 alias ipy='ipython'
 alias ipy2='ipython2'
 alias grep='grep --color=auto'
 alias n="nvim"
-export TODOTXT_DEFAULT_ACTION=ls
-alias t="todo.sh -d ${HOME}/.todo.cfg"
 # Paths
-PATH=$PATH:/opt/java/bin:~/bin:$GOPATH/bin
-export SUDO_HOME=$(eval "echo ~$SUDO_USER")
-export BSTINPUTS=.$HOME/share/Bst:
-export BIBINPUTS=.:$HOME/share/Bib:
-export PATH
-
-
-PATH=$PATH:$HOME/.rvm/bin # Add RVM to PATH for scripting
 
 if [[ -x `which gpg-agent` ]]; 
 then 
