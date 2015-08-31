@@ -16,5 +16,4 @@ then
   alias t="todo.sh -d ${HOME}/.todo.cfg"
 
   export PATH
-
 fi
