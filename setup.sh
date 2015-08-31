@@ -17,7 +17,7 @@ install_prereq() {
 setup_ohmyzsh() {
   if [ ! -d $HOME/.oh-my-zsh ]
   then
-    git clone http://github.com/robbyrussell/oh-my-zsh.git
+    git clone http://github.com/robbyrussell/oh-my-zsh.git $HOME/.oh-my-zsh
   fi         
 }
 
