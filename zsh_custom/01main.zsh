@@ -23,12 +23,13 @@ alias grep='grep --color=auto'
 alias n="nvim"
 # Paths
 
-ssh-add -l >/dev/null || alias ssh='ssh-add -l >/dev/null || ssh-add && unalias ssh; ssh'
 
 if [[ -x `which keychain` ]];
 then
   eval $(keychain --eval --quiet -Q)
 fi 
+
+ssh-add -l >/dev/null || alias ssh='ssh-add -l >/dev/null || ssh-add && unalias ssh; ssh'
 
 if [[ -x `which linuxlogo` ]];
 then
