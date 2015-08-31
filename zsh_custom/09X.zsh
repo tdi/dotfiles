@@ -1,16 +1,10 @@
-if [[ -x `which wmname` ]]; 
+
+if [ -z "$SERVER_CONFIG" ]
 then 
-  wmname LG3D
+  if [[ -x `which wmname` && ! -z $DISPLAY ]]; 
+  then 
+    wmname LG3D
+  fi
+  export DE='xfce'
+  alias startx='startx -- vt01'
 fi
-export DE='xfce'
-
-
-# Touchpad
-if [[ -x `which xinput` ]];
-then
-  xinput set-prop 'TPPS/2 IBM TrackPoint' "Evdev Wheel Emulation" 1
-  xinput set-prop 'TPPS/2 IBM TrackPoint' "Evdev Wheel Emulation Button" 2
-  xinput set-prop 'TPPS/2 IBM TrackPoint' "Evdev Wheel Emulation Timeout" 200
-fi
-
-alias startx='startx -- vt01'
