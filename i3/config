@@ -201,9 +201,9 @@ bindsym $mod+Pause mode "$mode_system"
 
 set $display xrandr off (o), xrandr right (->), xrandr left (<-)
 mode "$display" {
-   bindsym o exec --no-startup-id xrandr_home.sh off, mode "default"
-   bindsym Left exec --no-startup-id xrandr_home.sh left, mode "default"
-   bindsym Right exec --no-startup-id xrandr_home.sh right, mode "default"
+   bindsym o exec --no-startup-id ~/bin/xrandr_home.sh off, mode "default"
+   bindsym Left exec --no-startup-id ~/bin/xrandr_home.sh left, mode "default"
+   bindsym Right exec --no-startup-id ~/bin/xrandr_home.sh right, mode "default"
    bindsym Return mode "default"
    bindsym Escape mode "default"
 }
