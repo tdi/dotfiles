@@ -29,7 +29,10 @@ then
   eval $(keychain --eval --quiet -Q)
 fi 
 
-ssh-add -l >/dev/null || alias ssh='ssh-add -l >/dev/null || ssh-add && unalias ssh; ssh'
+if [[ -x `which ssh-agent` ]];
+then 
+  ssh-add -l >/dev/null || alias ssh='ssh-add -l >/dev/null || ssh-add && unalias ssh; ssh'
+fi
 
 if [[ -x `which linuxlogo` ]];
 then
