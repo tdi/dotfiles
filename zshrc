@@ -53,7 +53,7 @@ plugins=(git aws docker systemd tmux)
 
 # User configuration
 
-export PATH="/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games:/opt/java/bin:$HOME/bin:$HOME/dev/go/bin:$HOME/.rvm/bin:/opt/java/bin:$HOME/bin:$HOME/dev/go/bin:$HOME/.rvm/bin"
+#export PATH="/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games:/opt/java/bin:$HOME/bin:$HOME/dev/go/bin:$HOME/.rvm/bin:/opt/java/bin:$HOME/bin:$HOME/dev/go/bin:$HOME/.rvm/bin"
 # export MANPATH="/usr/local/man:$MANPATH"
 
 source $ZSH/oh-my-zsh.sh
