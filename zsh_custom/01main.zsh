@@ -3,8 +3,9 @@ export LC_MESSAGES=en_GB.UTF-8
 if [ -n "$TMUX" ]; then 
   TERM='screen-256color'
 fi
+
 if [ -z "$DISPLAY" ]; then
-  TERM='xterm-color'
+#  TERM='xterm-color'
 fi
 
 export TERM
