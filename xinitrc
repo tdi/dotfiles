@@ -12,6 +12,7 @@ ck-launch-session nm-applet  &
  /usr/lib/x86_64-linux-gnu/lxpolkit &
  xss-lock -- i3lock -i /home/tdi/share/wallpapers/deb_bulbs.png &
  redshift &
+ dunst &
 if [ -f $HOME/.Xmodmap]; then
   /usr/bin/xmodmap ~/.Xmodmap
 fi
