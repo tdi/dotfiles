@@ -15,5 +15,8 @@ then
   export TODOTXT_DEFAULT_ACTION=ls
   alias t="todo.sh -d ${HOME}/.todo.cfg"
 
+  BASE16_SHELL="$HOME/.config/base16-shell/base16-eighties.dark.sh"
+  [[ -s $BASE16_SHELL ]] && source $BASE16_SHELL
+
   export PATH
 fi
