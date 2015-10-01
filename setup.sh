@@ -21,24 +21,6 @@ setup_ohmyzsh() {
   fi         
 }
 
-
-install_prereq
-
-DOTFILES=$HOME/dotfiles
-DOTFILES_BACKUP=$(mktemp -d $HOME/dotfiles_backupXXXX)
-echo "Saving backup in $DOTFILES_BACKUP"
-cd $DOTFILES
-
-files="bashrc bash gitconfig zshrc zsh_custom devscripts dput.cf xinitrc dircolors tmux.conf i3 Xresources fonts"
-
-
-for file in $files; do
-  echo "Backup file: $file"
-  mv -f $HOME/.$file $DOTFILES_BACKUP/ 
-  echo "Symlink file: $file"
-  ln -s "$DOTFILES/$file" "$HOME/.$file"
-done 
-
 setup_vim() {
   if [ ! -d $HOME/.vim ]
   then
@@ -49,6 +31,32 @@ setup_vim() {
     vim +PluginInstall +qall
   fi
 }
+
+install_prereq
+
+DOTFILES=$HOME/dotfiles
+DOTFILES_BACKUP=$(mktemp -d $HOME/dotfiles_backupXXXX)
+echo "Saving backup in $DOTFILES_BACKUP"
+cd $DOTFILES
+
+files="bashrc bash gitconfig zshrc zsh_custom devscripts dput.cf xinitrc dircolors tmux.conf i3 Xresources fonts"
+
+for file in $files; do
+  echo "Backup file: $file"
+  mv -f $HOME/.$file $DOTFILES_BACKUP/ 
+  echo "Symlink file: $file"
+  ln -s "$DOTFILES/$file" "$HOME/.$file"
+done 
+
+config_files="dunst profanity"
+
+mkdir "$DOTFILES_BACKUP/config"
+for file in $config_files; do
+  echo "Backup file: config/$file"
+  mv -f $HOME/.config/$file $DOTFILES_BACKUP/config
+  echo "Symlink file: $file"
+  ln -s "$DOTFILES/config/$file" "$HOME/.config/$file"
+done 
 
 setup_vim 
 setup_ohmyzsh
