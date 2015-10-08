@@ -23,6 +23,17 @@ font pango:DejaVu Sans Mono 8
 # X core fonts rendering does not support right-to-left and this being a bitmap
 # font, it doesn’t scale on retina/hidpi displays.
 
+set $bg     #2c2c2e
+set $fg     #9f9f9f
+set $hi     #efef8f
+set $ac     #a0afa0
+set $tx     #040404
+set $ia     #8f8f8f
+set $be     #8faf9f
+set $yw     #ccdc90
+set $gn     #88b090
+set $rd     #e89393
+
 
 exec --no-startup-id feh --bg-scale /home/tdi/share/wallpapers/joy.png
 
@@ -64,7 +75,7 @@ for_window [class="^Minecraft$"] floating enable
 workspace_auto_back_and_forth yes
 
 bindsym $mod+o move container to output right
-
+bindsym $mod+x move workspace to output right
 new_window 1pixel
 
 
@@ -156,6 +167,8 @@ bindsym $mod+Shift+r restart
 # exit i3 (logs you out of your X session)
 bindsym $mod+Shift+e exec "i3-nagbar -t warning -m 'You pressed the exit shortcut. Do you really want to exit i3? This will end your X session.' -b 'Yes, exit i3' 'i3-msg exit'"
 
+
+for_window [window_role="(?i)pop-up"] floating enable
 # resize window (you can also use the mouse for that)
 mode "resize" {
         # These bindings trigger as soon as you enter the resize mode
@@ -199,7 +212,7 @@ mode "$mode_system" {
 bindsym $mod+Pause mode "$mode_system"
 
 
-set $display xrandr off (o), xrandr right (→), xrandr left (<-)
+set $display xrandr off (o), xrandr right (->), xrandr left (<-)
 mode "$display" {
    bindsym o exec --no-startup-id ~/bin/xrandr_home.sh off, mode "default"
    bindsym Left exec --no-startup-id ~/bin/xrandr_home.sh left, mode "default"
@@ -218,7 +231,12 @@ bar {
         # status_command i3status
         status_command python3 ~/.i3pystatus.py
         colors {
-          urgent_workspace   #2f343a #900000 #ffffff
+        statusline #00A5FF 
+        separator #666666
+        focused_workspace  #4c7899 #285577 #ffffff
+        active_workspace   #333333 #5f676a #ffffff
+        inactive_workspace #333333 #222222 #888888
+        urgent_workspace   #2f343a #900000 #ffffff
         }
 }
 bar {

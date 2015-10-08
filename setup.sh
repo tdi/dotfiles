@@ -39,7 +39,8 @@ DOTFILES_BACKUP=$(mktemp -d $HOME/dotfiles_backupXXXX)
 echo "Saving backup in $DOTFILES_BACKUP"
 cd $DOTFILES
 
-files="bashrc bash gitconfig zshrc zsh_custom devscripts dput.cf xinitrc dircolors tmux.conf i3 Xresources fonts"
+files="bashrc bash gitconfig zshrc zsh_custom devscripts dput.cf xinitrc dircolors tmux.conf i3
+Xresources fonts i3pystatus.py"
 
 for file in $files; do
   echo "Backup file: $file"

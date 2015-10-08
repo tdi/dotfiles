@@ -20,14 +20,14 @@ time=%d-%m-%y %H:%M
 time.statusbar=%H:%M:%S
 resource.title=true
 resource.message=true
-statuses.chat=online
+statuses.chat=all
 statuses.muc=all
 occupants=true
 occupants.size=15
 roster=true
 roster.offline=true
 roster.resource=false
-roster.empty=false
+roster.empty=true
 roster.by=presence
 roster.size=25
 privileges=true
@@ -36,8 +36,10 @@ intype=true
 enc.warn=true
 occupants.jid=false
 
+history=true
+
 [connection]
-account=dariusz.dwornikowski@gmail.com
+account=dariusz@dwornikowski.eu
 
 reconnect=4
 
@@ -46,11 +48,11 @@ autoping=10
 
 [alias]
 n=/who online
-
 ls=/wins
-
-
 na=/who available
+
+h=/help
+part=/close
 
 [logging]
 chlog=true
