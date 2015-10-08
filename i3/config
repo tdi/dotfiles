@@ -229,14 +229,14 @@ bar {
         output LVDS1
         position top
         # status_command i3status
-        status_command python3 ~/.i3pystatus.py
+        status_command python3 ~/.i3/i3status.py
         colors {
-        statusline #00A5FF 
-        separator #666666
-        focused_workspace  #4c7899 #285577 #ffffff
-        active_workspace   #333333 #5f676a #ffffff
-        inactive_workspace #333333 #222222 #888888
-        urgent_workspace   #2f343a #900000 #ffffff
+          statusline #00A5FF 
+          separator #666666
+          focused_workspace  #4c7899 #285577 #ffffff
+          active_workspace   #333333 #5f676a #ffffff
+          inactive_workspace #333333 #222222 #888888
+          urgent_workspace   #2f343a #900000 #ffffff
         }
 }
 bar {
