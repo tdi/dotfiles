@@ -232,7 +232,7 @@ bar {
         # status_command i3status
         status_command python3 ~/.i3/i3status.py
         colors {
-          statusline #00A5FF 
+          statusline #FFFFFF
           separator #666666
           focused_workspace  #4c7899 #285577 #ffffff
           active_workspace   #333333 #5f676a #ffffff
