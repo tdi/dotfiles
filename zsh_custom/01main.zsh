@@ -24,7 +24,6 @@ alias grep='grep --color=auto'
 alias n="nvim"
 # Paths
 
-
 if [[ -x `which keychain` ]];
 then
   eval $(keychain --eval --quiet -Q)

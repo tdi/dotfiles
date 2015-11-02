@@ -53,6 +53,7 @@ plugins=(git aws docker systemd tmux virtualenvwrapper)
 
 # User configuration
 
+export WORKON_HOME=$HOME/.virtualenvs
 #export PATH="/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games:/opt/java/bin:$HOME/bin:$HOME/dev/go/bin:$HOME/.rvm/bin:/opt/java/bin:$HOME/bin:$HOME/dev/go/bin:$HOME/.rvm/bin"
 # export MANPATH="/usr/local/man:$MANPATH"
 

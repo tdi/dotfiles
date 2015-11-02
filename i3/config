@@ -209,20 +209,19 @@ mode "$mode_system" {
     bindsym Return mode "default"
     bindsym Escape mode "default"
 }
+
 bindsym $mod+Pause mode "$mode_system"
 
+set $mode_randr xrandr off (o), xrandr right (->), xrandr left (←)
 
-set $randr xrandr off (o), xrandr right (->), xrandr left (<-)
-
-mode "$randr" {
+mode "$mode_randr" {
    bindsym o exec --no-startup-id ~/bin/xrandr_home.sh off, mode "default"
    bindsym Left exec --no-startup-id ~/bin/xrandr_home.sh left, mode "default"
    bindsym Right exec --no-startup-id ~/bin/xrandr_home.sh right, mode "default"
-   bindsym Return mode "default"
    bindsym Escape mode "default"
 }
 
-bindsym XF86Display mode "$randr"
+bindsym XF86Display mode "$mode_randr"
 
 # Start i3bar to display a workspace bar (plus the system information i3status
 # finds out, if available)
@@ -234,9 +233,10 @@ bar {
         colors {
           statusline #FFFFFF
           separator #666666
-          focused_workspace  #4c7899 #285577 #ffffff
+          focused_workspace  #4c78ff #285577 #ffffff
           active_workspace   #333333 #5f676a #ffffff
-          inactive_workspace #333333 #222222 #888888
+          inactive_workspace #333333 #222222 #fefefe
+          # inactive_workspace #333333 #222222 #888888
           urgent_workspace   #2f343a #900000 #ffffff
         }
 }
@@ -245,6 +245,8 @@ bar {
         position top
         tray_output none 
         colors {
+          focused_workspace  #4c78ff #285577 #ffffff
           urgent_workspace   #2f343a #900000 #ffffff
+          inactive_workspace #333333 #222222 #fefefe
         }
 }
