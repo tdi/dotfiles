@@ -1,13 +1,16 @@
+
 if [[ -x `which gpg-agent` ]]; 
 then 
   # GPG / SSH
-  envfile="$HOME/.gnupg/gpg-agent.env"
+  envfile="$HOME/.gnupg/gpg-agent-info-blackstar"
   if [[ -e "$envfile" ]] && kill -0 $(grep GPG_AGENT_INFO "$envfile" | cut -d: -f 2) 2>/dev/null; then
     eval "$(cat "$envfile")"
   else
-    eval "$(gpg-agent --daemon --write-env-file "$envfile")"
+    eval "$(gpg-agent --debug-level expert --daemon --log-file /tmp/gpg-log --write-env-file "$envfile")"
   fi
   export GPG_AGENT_INFO  # the env file does not contain the export statement
+  GPG_TTY=$(tty)
+  export GPG_TTY
 fi 
 
 if [[ -x `which ssh-agent` ]];

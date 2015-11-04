@@ -26,7 +26,7 @@ alias n="nvim"
 
 if [[ -x `which keychain` ]];
 then
-  eval $(keychain --eval --quiet -Q)
+  eval $(keychain --eval --quiet -Q --agents ssh)
 fi 
 
 if [[ -x `which ssh-agent` ]];
