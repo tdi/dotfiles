@@ -12,8 +12,8 @@ URxvt.boldItalicFont: xft:Inconsolata for Powerline:bold:italic:pixelsize=18:ant
  Urxvt*keysym.End: \033[4~
 ! Xft.dpi: 131
 Xcursor.theme: foobar
+
 URxvt*termName:                        rxvt-unicode-256color
-XTerm*termName: xterm-256color
 ! URxvt*geometry:                       geometry
 ! URxvt*chdir:                          string
 ! URxvt*reverseVideo:                   boolean
@@ -217,6 +217,20 @@ URxvt*letterSpace:                    -1
 ! *color13:                 S_violet
 ! *color14:                 S_base1
 ! *color15:                 S_base3
+
+XTerm*utf8: 1
+XTerm*font: -*-terminus-medium-*-*-*-24-*-*-*-*-*-iso10646-*
+! XTerm*font: -*-terminus-medium-*-*-*-18-*-*-*-*-*-iso10646-*
+! XTerm*font1: -*-terminus-medium-*-*-*-12-*-*-*-*-*-iso10646-*
+! XTerm*font2: -*-terminus-medium-*-*-*-14-*-*-*-*-*-iso10646-*
+! XTerm*font3: -*-terminus-medium-*-*-*-16-*-*-*-*-*-iso10646-*
+! XTerm*font4: -*-terminus-medium-*-*-*-22-*-*-*-*-*-iso10646-*
+! XTerm*font5: -*-terminus-medium-*-*-*-24-*-*-*-*-*-iso10646-*
+! XTerm*font6: -*-terminus-medium-*-*-*-32-*-*-*-*-*-iso10646-*
+XTerm*SaveLines: 9000
+XTerm*ScrollBar: false
+XTerm*ScrollKey: true
+! xterm*faceName: xft:Inconsolata for Powerline:pixelsize=18:antialias=true:hinting=true,xft:DejaVu Sans Mono:pixelsize=18:antialias=false:hinting=true
 
 ! Base16 Default
 ! Scheme: Chris Kempson (http://chriskempson.com)
