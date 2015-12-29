@@ -10,7 +10,7 @@ URxvt.boldItalicFont: xft:Inconsolata for Powerline:bold:italic:pixelsize=18:ant
 ! URxvt.boldFont: xft:DejaVu Sans Mono:pixelsize=15:style=Bold
  Urxvt*keysym.Home: \033[1~
  Urxvt*keysym.End: \033[4~
-! Xft.dpi: 131
+Xft.dpi: 96
 Xcursor.theme: foobar
 
 URxvt*termName:                        rxvt-unicode-256color
