@@ -28,8 +28,8 @@ status.register("mail",
                 color_unread="#FFFF00",
                 backends=[
                     maildir.MaildirMail(directory="/home/tdi/.mail/INBOX"),
-                    maildir.MaildirMail(directory="/home/tdi/.mail/Personal.INBOX"),
-                    maildir.MaildirMail(directory="/home/tdi/.mail/Tenesys.INBOX")
+                    #maildir.MaildirMail(directory="/home/tdi/.mail/Personal.INBOX"),
+                    maildir.MaildirMail(directory="/home/tdi/.mail-tenesys/Inbox")
                     ]
                 )
 status.run()
