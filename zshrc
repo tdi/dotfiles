@@ -51,6 +51,7 @@ ZSH_CUSTOM=$HOME/.zsh_custom
 # Add wisely, as too many plugins slow down shell startup.
 plugins=(git aws docker systemd tmux virtualenvwrapper)
 
+
 # User configuration
 
 export WORKON_HOME=$HOME/.virtualenvs

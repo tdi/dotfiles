@@ -2,11 +2,12 @@
 
 if [ -z "$SERVER_CONFIG" ]
 then 
-  export DEBEMAIL="dariusz.dwornikowski@cs.put.poznan.pl"
+  export DEBEMAIL="darek@debian.org"
   export DEBFULLNAME="Dariusz Dwornikowski"
   export GOPATH=$HOME/dev/go
   PATH=$PATH:$HOME/.rvm/bin # Add RVM to PATH for scripting
   PATH=$PATH:/opt/java/bin:~/bin:$GOPATH/bin
+  PATH=$PATH:$HOME/.awsenv/bin 
   alias dquilt="quilt --quiltrc=${HOME}/.quiltrc-dpkg"
 
   export BSTINPUTS=.$HOME/share/Bst:

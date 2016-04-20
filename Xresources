@@ -4,153 +4,21 @@ URxvt.boldFont: xft:Inconsolata for Powerline:bold:pixelsize=18:antialias=true:h
 URxvt.italicFont: xft:Inconsolata for Powerline:italic:pixelsize=18:antialias=true:hinting=true,xft:DejaVu Sans Mono:italic:pixelsize=18:antialias=true:hinting=true
 URxvt.boldItalicFont: xft:Inconsolata for Powerline:bold:italic:pixelsize=18:antialias=true:hinting=true,xft:DejaVu Sans Mono:bold:italic:pixelsize=18:antialias=true:hinting=true
 
-! URxvt.font: xft:Inconsolata for Powerline:style=medium:size=12:antialias=false:hinting=true
-! URxvt*boldFont: xft:inconsolata:style=bold:size=12:antialias=true
-! URxvt.font: xft:DejavuSansMono:pixelsize=15
-! URxvt.boldFont: xft:DejaVu Sans Mono:pixelsize=15:style=Bold
- Urxvt*keysym.Home: \033[1~
- Urxvt*keysym.End: \033[4~
-Xft.dpi: 96
+Urxvt*keysym.Home: \033[1~
+Urxvt*keysym.End: \033[4~
+Xft.dpi: 90
 Xcursor.theme: foobar
 
 URxvt*termName:                        rxvt-unicode-256color
-! URxvt*geometry:                       geometry
-! URxvt*chdir:                          string
-! URxvt*reverseVideo:                   boolean
-! URxvt*loginShell:                     boolean
-! URxvt*jumpScroll:                     boolean
-! URxvt*skipScroll:                     boolean
-! URxvt*pastableTabs:                   boolean
-! URxvt*scrollstyle:                    mode
 URxvt*scrollBar:                      false
-! URxvt*scrollBar_right:                boolean
-! URxvt*scrollBar_floating:             boolean
-! URxvt*scrollBar_align:                mode
-! URxvt*thickness:                      number
-! URxvt*scrollTtyOutput:                boolean
-! URxvt*scrollTtyKeypress:              boolean
-! URxvt*scrollWithBuffer:               boolean
-! URxvt*inheritPixmap:                  boolean
-! URxvt*transparent:                    boolean
-! URxvt*tintColor:                      color
-! URxvt*shading:                        number
-! URxvt*blurRadius:                     HxV
 URxvt*fading:                         30
-! URxvt*fadeColor:                      color
-! URxvt*utmpInhibit:                    boolean
 URxvt*urgentOnBell:                   true
-! URxvt*visualBell:                     boolean
-! URxvt*mapAlert:                       boolean
-! URxvt*meta8:                          boolean
 URxvt*mouseWheelScrollPage:           true
-! URxvt*tripleclickwords:               boolean
-! URxvt*insecure:                       boolean
-! URxvt*cursorUnderline:                boolean
-! URxvt*cursorBlink:                    boolean
-! URxvt*pointerBlank:                   boolean
-! URxvt*background:                     #300a24
-! URxvt*foreground:                     #f2f2f2
-! URxvt*color0:                         #300a24
-! URxvt*color1:                         color
-! URxvt*color2:                         color
-! URxvt*color3:                         color
-! URxvt*color4:                         color
-! URxvt*color5:                         color
-! URxvt*color6:                         color
-! URxvt*color7:                         color
-! URxvt*color8:                         color
-! URxvt*color9:                         color
-! URxvt*color10:                        color
-! URxvt*color11:                        color
-! URxvt*color12:                        color
-! URxvt*color13:                        color
-! URxvt*color14:                        color
-! URxvt*color15:                        color
-! URxvt*colorBD:                        color
-! URxvt*colorIT:                        color
 URxvt*colorUL:                        yellow
 ! URxvt*colorRV:                        color
 URxvt*underlineColor:                 yellow
-! URxvt*scrollColor:                    color
-! URxvt*troughColor:                    color
-! URxvt*highlightColor:                 color
-! URxvt*highlightTextColor:             color
-! URxvt*cursorColor:                    color
-! URxvt*cursorColor2:                   color
-! URxvt*pointerColor:                   color
-! URxvt*pointerColor2:                  color
-! URxvt*borderColor:                    color
-! URxvt*path:                           search path
-! URxvt*backgroundPixmap:               file[;geom]
-! URxvt*iconFile:                       file
-! URxvt*font:                           fontname
-! URxvt*italicFont:                     fontname
-! URxvt*boldItalicFont:                 fontname
-! URxvt*intensityStyles:                boolean
-! URxvt*inputMethod:                    name
-! URxvt*preeditType:                    style
-! URxvt*imLocale:                       string
-! URxvt*imFont:                         fontname
-! URxvt*title:                          string
-! URxvt*iconName:                       string
-! URxvt*saveLines:                      number
-! URxvt*buffered:                       boolean
 URxvt*depth:                          32
-! URxvt*visual:                         number
-! URxvt*transient-for:                  windowid
-! URxvt*override-redirect:              boolean
-! URxvt*hold:                           boolean
-! URxvt*externalBorder:                 number
-! URxvt*internalBorder:                 number
-! URxvt*borderLess:                     boolean
-! URxvt*lineSpace:                      number
 URxvt*letterSpace:                    -1
-! URxvt*skipBuiltinGlyphs:              boolean
-! URxvt*pointerBlankDelay:              number
-! URxvt*backspacekey:                   string
-! URxvt*deletekey:                      string
-! URxvt*print-pipe:                     string
-! URxvt*modifier:                       modifier
-! URxvt*cutchars:                       string
-! URxvt*answerbackString:               string
-! URxvt*secondaryScreen:                boolean
-! URxvt*secondaryScroll:                boolean
-! URxvt*perl-lib:                       string
-! URxvt*perl-eval:                      perl-eval
-! URxvt*perl-ext-common:                string
-! URxvt*perl-ext:                       string
-! URxvt*iso14755:                       boolean
-! URxvt*iso14755_52:                    boolean
-! URxvt*xrm:                            string
-! URxvt*keysym.sym:                     keysym
-! URxvt*background.border:              boolean
-! URxvt*background.expr:                string
-! URxvt*background.interval:            seconds
-! URxvt*bell-command:                   string
-! URxvt*matcher.button:                 string
-! URxvt*matcher.launcher:               string
-! URxvt*matcher.launcher.*:             string
-! URxvt*matcher.pattern.*:              string
-! URxvt*matcher.rend.*:                 string
-! URxvt*remote-clipboard.fetch:         string
-! URxvt*remote-clipboard.store:         string
-! URxvt*keysym.Home: \033[1~
-! URxvt*keysym.End: \033[4~
-! URxvt*keysym.A-Left: command:\000
-! URxvt*searchable-scrollback:          string
-! URxvt*selection-autotransform.*:      string
-! URxvt*selection-pastebin.cmd:         string
-! URxvt*selection-pastebin.url:         string
-! URxvt*selection.pattern-0:            string
-! URxvt*tab-bg:                         colour
-! URxvt*tab-fg:                         colour
-! URxvt*tabbar-bg:                      colour
-! URxvt*tabbar-fg:                      colour
-! URxvt*url-launcher:                   string
-! Solarized color scheme for the X Window System
-!
-! http://ethanschoonover.com/solarized
-
 
 ! Common
 
@@ -218,20 +86,45 @@ URxvt*letterSpace:                    -1
 ! *color14:                 S_base1
 ! *color15:                 S_base3
 
+!XTerm*font: -*-terminus-medium-*-*-*-24-*-*-*-*-*-iso10646-*
+XTerm*font: -*-terminus-medium-*-*-*-16-*-*-*-*-*-iso10646-*
+XTerm*font1: -*-terminus-medium-*-*-*-10-*-*-*-*-*-iso10646-*
+XTerm*font2: -*-terminus-medium-*-*-*-12-*-*-*-*-*-iso10646-*
+XTerm*font3: -*-terminus-medium-*-*-*-14-*-*-*-*-*-iso10646-*
+XTerm*font4: -*-terminus-medium-*-*-*-22-*-*-*-*-*-iso10646-*
+XTerm*font5: -*-terminus-medium-*-*-*-24-*-*-*-*-*-iso10646-*
+XTerm*font6: -*-terminus-medium-*-*-*-32-*-*-*-*-*-iso10646-*
+
+XTerm*vt100.renderFont: false
+! xterm*font: 7x13
+Xft*antialias: true
 XTerm*utf8: 1
-XTerm*font: -*-terminus-medium-*-*-*-24-*-*-*-*-*-iso10646-*
-! XTerm*font: -*-terminus-medium-*-*-*-18-*-*-*-*-*-iso10646-*
-! XTerm*font1: -*-terminus-medium-*-*-*-12-*-*-*-*-*-iso10646-*
-! XTerm*font2: -*-terminus-medium-*-*-*-14-*-*-*-*-*-iso10646-*
-! XTerm*font3: -*-terminus-medium-*-*-*-16-*-*-*-*-*-iso10646-*
-! XTerm*font4: -*-terminus-medium-*-*-*-22-*-*-*-*-*-iso10646-*
-! XTerm*font5: -*-terminus-medium-*-*-*-24-*-*-*-*-*-iso10646-*
-! XTerm*font6: -*-terminus-medium-*-*-*-32-*-*-*-*-*-iso10646-*
+xterm*VT100.geometry:     80x25
+xterm*dynamicColors:      true
+! ta ok
+xterm*faceName:           Inconsolata:style=Regular:size=12
+xterm*termName: xterm-256color
+XTerm*locale: true
 XTerm*SaveLines: 9000
 XTerm*ScrollBar: false
 XTerm*ScrollKey: true
-! xterm*faceName: xft:Inconsolata for Powerline:pixelsize=18:antialias=true:hinting=true,xft:DejaVu Sans Mono:pixelsize=18:antialias=false:hinting=true
+xterm*scrollTtyOutput:    false
+xterm*rightScrollBar:     true
+xterm*jumpScroll:         true
+xterm*multiScroll:        true
 
+
+XTerm*pointerColor: white
+XTerm*pointerColorBackground: black
+XTerm*cursorColor: yellow
+XTerm*cursorBlink: false
+XTerm*charClass: 33:48,36-47:48,58-59:48,61:48,63-64:48,95:48,126:48
+XTerm*on3Clicks: regex ([[:alpha:]]+://)?([[:alnum:]!#+,./=?@_~-]|(%[[:xdigit:]][[:xdigit:]]))+
+
+XTerm*printerCommand: xterm -T History -e sh -c 'less -r <&3' 3<&0
+XTerm*translations: #override Ctrl <Key>slash: print-everything()
+
+!XTerm*selectToClipboard: true
 ! Base16 Default
 ! Scheme: Chris Kempson (http://chriskempson.com)
 
