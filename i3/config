@@ -45,7 +45,7 @@ floating_modifier $mod
 # start a terminal
 bindsym $mod+Return exec xterm
 bindsym $mod+f exec pcmanfm
-bindsym $mod+q exec firefox
+bindsym $mod+q exec chromium
 bindsym $mod+m exec xterm -e mutt
 bindsym XF86Launch1 exec pavucontrol
 bindsym $mod+u [urgent=latest] focus

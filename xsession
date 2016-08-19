@@ -21,7 +21,7 @@ fi
  xinput set-prop 'TPPS/2 IBM TrackPoint' "Evdev Wheel Emulation Timeout" 200
  start-pulseaudio-x11
  /usr/lib/x86_64-linux-gnu/lxpolkit &
- xss-lock -- i3lock -i /home/tdi/share/wallpapers/deb_bulbs.png &
+ xss-lock -- i3lock &
  redshift &
  pidgin &
  slack &
