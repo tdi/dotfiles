@@ -1,0 +1,66 @@
+ZSH_THEME=""
+
+plugins=(git ssh-agent keychain)
+# User configuration
+export ZSH=$HOME/.oh-my-zsh
+
+export PATH="/usr/local/sbin:$PATH"
+export PATH="/Users/tdi/.local/bin:$PATH"
+export PATH="$HOME/.cargo/bin":$PATH
+
+source $ZSH/oh-my-zsh.sh
+
+export ZPLUG_HOME=/opt/homebrew/opt/zplug
+source $ZPLUG_HOME/init.zsh
+
+
+zplug "mafredri/zsh-async", from:github
+zplug "sindresorhus/pure", use:pure.zsh, from:github, as:theme
+
+zplug load
+
+if ! zplug check --verbose; then
+    printf "Install? [y/N]: "
+    if read -q; then
+        echo; zplug install
+    fi
+fi
+
+
+# Preferred editor for local and remote sessions
+if [[ -n $SSH_CONNECTION ]]; then
+   export EDITOR='vim'
+ else
+   export EDITOR='nvim'
+ fi
+
+if [ -f /usr/local/bin/kubectl ]; then source <(kubectl completion zsh); fi
+
+eval "$(/opt/homebrew/bin/brew shellenv)"
+# source ~/.nix-profile/share/zsh-autosuggestions/zsh-autosuggestions.zsh
+source /opt/homebrew/share/zsh-autosuggestions/zsh-autosuggestions.zsh
+
+alias vim='nvim'
+alias k='kubectl'
+alias nixdev='nix develop -c $SHELL'
+
+
+
+cc-glm() {
+  [[ ! -v $ANTHROPIC_AUTH_TOKEN ]] && echo "Variable not set" 
+  ANTHROPIC_AUTH_TOKEN=${ANTHROPIC_AUTH_TOKEN} \
+  ANTHROPIC_BASE_URL="https://api.z.ai/api/anthropic" \
+  ANTHROPIC_DEFAULT_OPUS_MODEL="glm-4.6" \
+  ANTHROPIC_DEFAULT_SONNET_MODEL="glm-4.6" \
+  ANTHROPIC_DEFAULT_HAIKU_MODEL="glm-4.6" \
+  API_TIMEOUT_MS="300000" \
+  claude --dangerously-skip-permissions --model glm-4.6 "$@"
+}
+
+
+
+eval "$(direnv hook zsh)"
+eval "$(gh copilot alias -- zsh)"
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+
