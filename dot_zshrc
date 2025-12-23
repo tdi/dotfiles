@@ -42,7 +42,7 @@ source /opt/homebrew/share/zsh-autosuggestions/zsh-autosuggestions.zsh
 
 alias vim='nvim'
 alias k='kubectl'
-alias nixdev='nix develop -c $SHELL'
+alias cdp='cd ~/Projects/$(ls ~/Projects |  fzf)'
 
 
 
@@ -56,7 +56,6 @@ cc-glm() {
   API_TIMEOUT_MS="300000" \
   claude --dangerously-skip-permissions --model glm-4.6 "$@"
 }
-
 
 
 eval "$(direnv hook zsh)"
