@@ -35,12 +35,11 @@ keybind = cmd+one=text:\x021
 keybind = cmd+two=text:\x022
 keybind = cmd+three=text:\x023
 keybind = cmd+four=text:\x024
-keybind = cmd+five=text:\x025
+keybind = cmd+five=text:\x027
 keybind = cmd+six=text:\x026
 keybind = cmd+seven=text:\x027
 keybind = cmd+eight=text:\x028
 keybind = cmd+nine=text:\x029
-
 
 
 # misc
