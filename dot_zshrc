@@ -34,15 +34,20 @@ if [[ -n $SSH_CONNECTION ]]; then
    export EDITOR='nvim'
  fi
 
-if [ -f /usr/local/bin/kubectl ]; then source <(kubectl completion zsh); fi
 
 eval "$(/opt/homebrew/bin/brew shellenv)"
-# source ~/.nix-profile/share/zsh-autosuggestions/zsh-autosuggestions.zsh
 source /opt/homebrew/share/zsh-autosuggestions/zsh-autosuggestions.zsh
+source "$(brew --prefix)/share/google-cloud-sdk/path.zsh.inc"
+
 
 alias vim='nvim'
-alias k='kubectl'
 alias cdp='cd ~/Projects/$(ls ~/Projects |  fzf)'
+
+export USE_GKE_GCLOUD_AUTH_PLUGIN=True
+source <(kubectl completion zsh)
+alias kubectl="kubecolor"
+alias k='kubectl'
+compdef kubecolor=kubectl
 
 
 
@@ -57,10 +62,51 @@ cc-glm() {
   claude --dangerously-skip-permissions --model glm-4.6 "$@"
 }
 
+wt() {
+  local name="$1"
+  local base=$(git rev-parse --show-toplevel)
+  local parent=$(dirname "$base")
+  local repo=$(basename "$base" | sed 's/-[^-]*$//')  # strip existing suffix
+  
+  git worktree add "$parent/${repo}-${name}" -b "$name" 2>/dev/null || \
+  git worktree add "$parent/${repo}-${name}" "$name"  # if branch exists
+  
+  cd "$parent/${repo}-${name}"
+  mise trust 
+}
+
+# List and pick worktree with fzf
+wtp() {
+  local selected=$(git worktree list | fzf --height 40% --reverse | awk '{print $1}')
+  [[ -n "$selected" ]] && cd "$selected"
+}
+
+wtr() {
+  local sel=$(git worktree list | tail -n +2 | fzf --height 40% --reverse)
+  [[ -z "$sel" ]] && return
+  local p=$(echo "$sel" | awk '{print $1}')
+  git worktree remove $p 
+  echo "Deleted $p"
+}
+
+# List all worktrees
+wtl() {
+  git worktree list
+}
+
+
 
 eval "$(direnv hook zsh)"
-eval "$(gh copilot alias -- zsh)"
+# eval "$(gh copilot alias -- zsh)"
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
 export PATH="$HOME/.local/bin:$PATH"
 
+
+# bun completions
+[ -s "/Users/darek/.bun/_bun" ] && source "/Users/darek/.bun/_bun"
+
+# bun
+export BUN_INSTALL="$HOME/.bun"
+export PATH="$BUN_INSTALL/bin:$PATH"
+eval "$(mise activate zsh)"
