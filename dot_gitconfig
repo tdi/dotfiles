@@ -30,6 +30,7 @@
   brancht = branch --sort=commitdate
 [merge]
     conflictStyle = zdiff3
+    tool = nvimdiff
 [difftool]
   prompt = false
   trustExitCode = true

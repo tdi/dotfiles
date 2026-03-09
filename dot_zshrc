@@ -62,18 +62,26 @@ cc-glm() {
   claude --dangerously-skip-permissions --model glm-4.6 "$@"
 }
 
+
 wt() {
   local name="$1"
   local base=$(git rev-parse --show-toplevel)
   local parent=$(dirname "$base")
-  local repo=$(basename "$base" | sed 's/-[^-]*$//')  # strip existing suffix
+  local repo=$(basename "$base" | sed 's/-[^-]*$//')
+  local target="$parent/${repo}-${name}"
   
-  git worktree add "$parent/${repo}-${name}" -b "$name" 2>/dev/null || \
-  git worktree add "$parent/${repo}-${name}" "$name"  # if branch exists
+  git worktree add "$target" -b "$name" 2>/dev/null || \
+  git worktree add "$target" "$name"
   
-  cd "$parent/${repo}-${name}"
-  mise trust 
+  # Copy all env files
+  for f in "$base"/.env*; do
+    [[ -f "$f" ]] && cp "$f" "$target/"
+  done
+  
+  cd "$target"
+  mise trust
 }
+
 
 # List and pick worktree with fzf
 wtp() {
@@ -85,7 +93,7 @@ wtr() {
   local sel=$(git worktree list | tail -n +2 | fzf --height 40% --reverse)
   [[ -z "$sel" ]] && return
   local p=$(echo "$sel" | awk '{print $1}')
-  git worktree remove $p 
+  git worktree remove -f $p 
   echo "Deleted $p"
 }
 
@@ -110,3 +118,7 @@ export PATH="$HOME/.local/bin:$PATH"
 export BUN_INSTALL="$HOME/.bun"
 export PATH="$BUN_INSTALL/bin:$PATH"
 eval "$(mise activate zsh)"
+
+# peon-ping quick controls
+alias peon="bash /Users/darek/.claude/hooks/peon-ping/peon.sh"
+[ -f /Users/darek/.claude/hooks/peon-ping/completions.bash ] && source /Users/darek/.claude/hooks/peon-ping/completions.bash

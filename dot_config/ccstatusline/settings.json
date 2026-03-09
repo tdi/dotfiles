@@ -62,6 +62,14 @@
       {
         "id": "ffd32957-053c-43ee-823b-e2b317f590e4",
         "type": "git-worktree"
+      },
+      {
+        "id": "2707277c-eb74-4ca0-b9f3-cfac713a60b9",
+        "type": "separator"
+      },
+      {
+        "id": "73714e10-2c75-4f5d-ba39-c9ffdc7a00a2",
+        "type": "git-root-dir"
       }
     ],
     []
