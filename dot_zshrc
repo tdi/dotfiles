@@ -1,9 +1,6 @@
-ZSH_THEME=""
-
 plugins=(git ssh-agent keychain)
 # User configuration
 export ZSH=$HOME/.oh-my-zsh
-
 export PATH="/usr/local/sbin:$PATH"
 export PATH="/Users/tdi/.local/bin:$PATH"
 export PATH="$HOME/.cargo/bin":$PATH
@@ -15,7 +12,10 @@ source $ZPLUG_HOME/init.zsh
 
 
 zplug "mafredri/zsh-async", from:github
-zplug "sindresorhus/pure", use:pure.zsh, from:github, as:theme
+zplug 'plugins/ssh-agent', from:oh-my-zsh, ignore:oh-my-zsh.sh
+zplug "plugins/git",   from:oh-my-zsh
+zplug "zsh-users/zsh-history-substring-search", as:plugin
+
 
 zplug load
 
@@ -25,6 +25,18 @@ if ! zplug check --verbose; then
         echo; zplug install
     fi
 fi
+
+#zstyle ':completion:*' matcher-list 'm:{a-z}={A-Za-z}'
+
+
+# autoload -U up-line-or-beginning-search
+# autoload -U down-line-or-beginning-search
+# zle -N up-line-or-beginning-search
+# zle -N down-line-or-beginning-search
+# bindkey "^[[A" up-line-or-beginning-search # Up
+# bindkey "^[[B" down-line-or-beginning-search # Down
+
+
 
 
 # Preferred editor for local and remote sessions
@@ -122,3 +134,4 @@ eval "$(mise activate zsh)"
 # peon-ping quick controls
 alias peon="bash /Users/darek/.claude/hooks/peon-ping/peon.sh"
 [ -f /Users/darek/.claude/hooks/peon-ping/completions.bash ] && source /Users/darek/.claude/hooks/peon-ping/completions.bash
+eval "$(starship init zsh)"
