@@ -1,0 +1,37 @@
+onboarding = false
+[worktrees]
+directory = "~/Projects/worktrees"
+
+[theme]
+name = "vesper"
+
+auto_switch = false
+[ui.toast]
+delivery = "system"
+
+[ui]
+show_agent_labels_on_pane_borders = true
+agent_panel_sort = "priority"
+
+[experimental]
+pane_history = true
+
+switch_ascii_input_source_in_prefix = false
+[ui.sound]
+enabled = true
+
+[keys]
+# open_worktree = "prefix+shift+o"
+goto = "prefix+space"
+
+[[keys.command]]
+key = "prefix+g"
+type = "plugin_action"
+command = "tdi.worktree-from-pr.pick"
+description = "worktree from PR"
+
+[[keys.command]]
+key = "prefix+l"
+type = "plugin_action"
+command = "tdi.worktree-from-linear.pick"
+description = "worktree from Linear"
