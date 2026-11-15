@@ -40,12 +40,12 @@
               "id": "agents",
               "type": "block",
               "content": {
-                "mod": "agents"
+                "mod": "agent-tiles"
               },
               "size": {
-                "weight": 1
+                "px": 150
               },
-              "min": 90
+              "min": 70
             }
           ]
         },

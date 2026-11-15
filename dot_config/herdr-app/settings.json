@@ -1,12 +1,12 @@
 {
-  "zoom": 1.2,
+  "zoom": 1.1,
   "sounds": {
     "enabled": true
   },
-  "theme": "catppuccin-macchiato",
   "font": "FiraCode Nerd Font Mono",
   "font_ligatures": false,
-  "minimum_contrast": 1,
+  "telemetry": false,
+  "minimum_contrast": 1.0,
   "option_as_alt": "left",
-  "telemetry": false
+  "theme": "catppuccin-macchiato"
 }
