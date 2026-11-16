@@ -425,9 +425,19 @@ export default class Spaces extends View {
       const kids = list.filter((k) => nested(k) && k.g.repo === r.g.repo);
       kids.forEach((k, n) => block.push({ ...k, tree: n === kids.length - 1 ? "└─" : "├─", company }));
     }
-    // Company groups in COMPANIES order (stable within each); the real order follows.
+    // Company groups in COMPANIES order (stable within each), inside each machine's own
+    // block: space.move can't take a space across machines, so a target mixing them
+    // could never be reached and the moves would repeat forever (two connected screens
+    // fighting over the order, names flickering). A machine is only sorted once git has
+    // answered for every one of its spaces, so a half-loaded screen doesn't move anything.
+    const mkey = (w) => w.machine ?? "";
+    const mrank = new Map();
+    for (const w of sp) if (!mrank.has(mkey(w))) mrank.set(mkey(w), mrank.size);
+    const known = new Map();
+    for (const w of sp) known.set(mkey(w), (known.get(mkey(w)) ?? true) && where(w, ps) in this.git);
+    const rank = (b) => known.get(mkey(b[0].w)) ? companyRank(b[0].company) : 0;
     const out = blocks.map((b, n) => ({ b, n }))
-      .sort((x, y) => companyRank(x.b[0].company) - companyRank(y.b[0].company) || x.n - y.n)
+      .sort((x, y) => mrank.get(mkey(x.b[0].w)) - mrank.get(mkey(y.b[0].w)) || rank(x.b) - rank(y.b) || x.n - y.n)
       .flatMap((x) => x.b);
     // Simulate the batch so later indexes include earlier moves. An attempted
     // write can lose a sync conflict: allow the echo to settle before retrying.
@@ -543,12 +553,14 @@ export default class Spaces extends View {
   // and the name both start from their text's width and give way in proportion.
   gitTail(g, tree, name, t) {
     const raw = g.branch ?? "detached";
-    const same = (a) => a.toLowerCase() === name.toLowerCase();
+    const norm = (a) => a.toLowerCase().replace(/[^0-9a-z]+/g, "-");
+    const same = (a) => norm(a) === norm(name);
     const branch = same(raw) || raw === "master" || raw === "main" ? "" : raw;
     const repo = tree || same(g.name) ? "" : g.name;
     const where = [repo, branch].filter(Boolean).join(" \u00b7 ");
     return h_flex()
       .flex_auto()
+      .flex_shrink(8)
       .min_w(where ? SIDE_MIN : 0)
       .gap(5)
       .justify_end()
