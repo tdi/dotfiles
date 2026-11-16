@@ -1,0 +1,4 @@
+[
+  { "name": "Bitropy", "match": "github\\.com[:/]bitropy/", "color": "ansi4" },
+  { "name": "Whenubuy", "match": "github\\.com[:/]whenubuy/|gitlab\\.com[:/]com\\.whenubuy/", "color": "ansi3" }
+]

@@ -2,15 +2,18 @@
 // Start opens a git worktree on the issue's Linear branch (based on the default branch)
 // as a new space, optionally with Claude and the issue as its first message.
 //
-// Config: the herdr plugin's file (~/.config/herdr/plugins/config/tdi.worktree-from-linear/
-// config.json, or config.yml holding JSON), else LINEAR_API_KEY from the environment.
+// Config: ~/.config/herdr-app/linear.json, else the herdr TUI plugin's file
+// (~/.config/herdr/plugins/config/tdi.worktree-from-linear/config.json, or config.yml
+// holding JSON), here or on a connected machine; the key falls back to LINEAR_API_KEY.
+// The file holds your API key: keep it out of any dotfiles repo.
 // Keys used: linearApiKey, teamKey, issueLimit, assignedToMe, includeTriage, base, repos,
 // worktreeRoot (default ~/.herdr/worktrees; checkouts go to <root>/<repo>/<branch slug>),
 // agentMachine: the machine heavy work goes to (worktree + Claude), e.g. "mini". Viewed
 // from another computer connected to it, Start makes the worktree and space there;
 // "Here (light)" starts on the computer you're at. Repos given in `repos` are paths on
-// agentMachine. An expanded issue offers the Bitropy repos in ~/Projects to start in
-// (guessed from a "repo:" title prefix).
+// agentMachine. repoOrgs (e.g. ["my-org"]): an expanded issue offers the repos in
+// ~/Projects whose origin is in one of those GitHub/GitLab orgs (guessed from a "repo:"
+// title prefix).
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, Scrollbar, TextView } from "gpui-base";
@@ -21,7 +24,6 @@ const REFRESH_MS = 5 * 60_000;
 const STATE_ORDER = { started: 0, unstarted: 1, triage: 2, backlog: 3 };
 const slug = (branch) => branch.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
 const tilde = (p) => (p && p.startsWith(home()) ? `~${p.slice(home().length)}` : p);
-const BITROPY = /github\.com[:/]bitropy\//i;
 
 // $HOME on a machine (null = here), asked once.
 const homes = new Map();
@@ -36,13 +38,15 @@ async function homeOn(on) {
 }
 const expand = async (p, on) => (p ? p.replace(/^~(?=\/|$)/, await homeOn(on)) : p);
 
-// Main checkouts of Bitropy repos in ~/Projects on machine `on`: [{ name, main, on, bitropy }].
-async function bitropyRepos(on) {
+// Main checkouts in ~/Projects on machine `on` whose origin is in one of `orgs`: [{ name, main, on }].
+async function orgRepos(on, orgs) {
+  if (!orgs?.length) return [];
+  const inOrg = new RegExp(`[:/](${orgs.map((o) => o.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})/`, "i");
   const r = await exec("sh", ["-c", 'for d in "$HOME"/Projects/*/; do [ -d "$d.git" ] || continue; u=$(git -C "$d" config --get remote.origin.url 2>/dev/null) || continue; printf "%s\\t%s\\n" "${d%/}" "$u"; done'],
     { ...(on ? { on } : {}), timeout: 20000 }).catch(() => null);
   if (!r || r.code !== 0) return [];
-  return r.stdout.split("\n").map((l) => l.split("\t")).filter(([d, u]) => d && BITROPY.test(u ?? ""))
-    .map(([main]) => ({ main, name: main.split("/").pop(), on, bitropy: true }));
+  return r.stdout.split("\n").map((l) => l.split("\t")).filter(([d, u]) => d && inOrg.test(u ?? ""))
+    .map(([main]) => ({ main, name: main.split("/").pop(), on }));
 }
 
 // ---------- config ----------
@@ -52,19 +56,20 @@ const lenientJson = (text) => JSON.parse(text.replace(/^\s*\/\/.*$/gm, "").repla
 // The config file here, else on a connected machine (the agent machine keeps the key).
 async function loadConfig() {
   const rel = ".config/herdr/plugins/config/tdi.worktree-from-linear";
+  const files = [".config/herdr-app/linear.json", `${rel}/config.json`, `${rel}/config.yml`];
   let config = {}, source = null;
   const places = [null, ...machines().filter((m) => m.name && !m.temporary && m.layout !== "unavailable").map((m) => m.name)];
   search: for (const on of places) {
-    const dir = `${await homeOn(on).catch(() => null)}/${rel}`;
-    if (dir.startsWith("null")) continue;
-    for (const name of ["config.json", "config.yml"]) {
-      const text = await readTextFile(`${dir}/${name}`, on ? { on } : undefined).catch(() => null);
+    const h = await homeOn(on).catch(() => null);
+    if (!h) continue;
+    for (const f of files) {
+      const text = await readTextFile(`${h}/${f}`, on ? { on } : undefined).catch(() => null);
       if (text === null) continue;
-      try { config = lenientJson(text); source = `${on ? `${on}:` : ""}${dir}/${name}`; break search; }
-      catch (e) { throw new Error(`${tilde(dir)}/${name} is not valid JSON: ${e.message ?? e}`); }
+      try { config = lenientJson(text); source = `${on ? `${on}:` : ""}~/${f}`; break search; }
+      catch (e) { throw new Error(`~/${f} is not valid JSON: ${e.message ?? e}`); }
     }
   }
-  const dir = `~/${rel}`;
+  const dir = "~/.config/herdr-app/linear.json";
   let key = config.linearApiKey;
   if (!key) {
     for (const [sh, args] of [["sh", ["-c"]], ["zsh", ["-lc"]]]) {
@@ -72,7 +77,7 @@ async function loadConfig() {
       if (r?.code === 0 && r.stdout.trim()) { key = r.stdout.trim(); source = source ?? "LINEAR_API_KEY"; break; }
     }
   }
-  if (!key) throw new Error(`No Linear API key: set linearApiKey in ${tilde(dir)}/config.json or export LINEAR_API_KEY.`);
+  if (!key) throw new Error(`No Linear API key: set linearApiKey in ${dir} or export LINEAR_API_KEY.`);
   return { issueLimit: 50, base: "default", ...config, linearApiKey: key, source };
 }
 
@@ -117,14 +122,13 @@ async function git(cwd, args, timeout, on) {
 }
 
 // The main checkout of the repo `folder` is in (a linked worktree resolves to its main repo).
-// { main, name, on, bitropy }: on = the machine it's on (null = here).
+// { main, name, on }: on = the machine it's on (null = here).
 async function repoOf(folder, on = null) {
   if (!folder) return null;
   const common = await git(folder, ["rev-parse", "--path-format=absolute", "--git-common-dir"], 0, on);
   if (!common.ok) return null;
   const main = common.out.endsWith("/.git") ? common.out.slice(0, -5) : common.out;
-  const origin = await git(main, ["remote", "get-url", "origin"], 0, on);
-  return { main, name: main.split("/").pop(), on, bitropy: origin.ok && BITROPY.test(origin.out) };
+  return { main, name: main.split("/").pop(), on };
 }
 
 async function worktreeFor(repo, branch, on) {
@@ -188,7 +192,8 @@ export default class Linear extends View {
       try {
         this.config = await loadConfig();
         const on = this.heavy();
-        if (this.reposOn !== (on ?? "")) { this.repos = await bitropyRepos(on); this.reposOn = on ?? ""; }
+        if (this.reposOn !== (on ?? "")) { this.repos = await orgRepos(on, [].concat(this.config.repoOrgs ?? [])); this.reposOn = on ?? ""; }
+        setShared("linear.teamKey", this.config.teamKey ?? null);
         if (this.mine === null) this.mine = Boolean(this.config.assignedToMe);
         const data = await gql(this.config, issuesQuery(this.config, this.mine), { first: this.config.issueLimit });
         this.issues = data.issues.nodes.sort((a, b) =>
@@ -237,13 +242,13 @@ export default class Linear extends View {
   }
 
   // The repo an issue goes to, by name: the one picked in its row, else the title's
-  // "repo:" prefix ("portal: …"), else the focused repo when it's a Bitropy one.
+  // "repo:" prefix ("portal: …"), else the focused repo when it's one of those.
   target(issue) {
     const names = new Set(this.repos.map((r) => r.name));
     if (this.picked[issue.id]) return this.picked[issue.id];
     const prefix = /^\s*([\w.-]+)\s*:/.exec(issue.title)?.[1]?.toLowerCase();
     if (prefix && names.has(prefix)) return prefix;
-    if (this.repo?.bitropy) return this.repo.name;
+    if (this.repo && names.has(this.repo.name)) return this.repo.name;
     return null;
   }
 
@@ -475,7 +480,7 @@ export default class Linear extends View {
         .child(Scrollbar.vertical("linear-list").absolute().inset_0()))
       .child(h_flex().flex_none().h(28).px(12).gap(6).items_center().border_t(1).border_color(t.border).text_size(10.5).text_color(t.dim)
         .child(div().flex_1().min_w(0).truncate().child(this.repo
-          ? `New worktrees from ${this.repo.name}${this.heavy() ? ` on ${this.heavy()}` : ""}${this.repo.bitropy ? " · Bitropy" : ""}`
+          ? `New worktrees from ${this.repo.name}${this.heavy() ? ` on ${this.heavy()}` : ""}`
           : "Pick a repo in an issue, or focus a repo's terminal"))
         .when(Boolean(this.at), (e) => e.child(div().flex_none().child(new Date(this.at).toTimeString().slice(0, 5)))));
   }

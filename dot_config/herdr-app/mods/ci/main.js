@@ -2,8 +2,8 @@
 // or the branch's latest workflow runs before there is a PR. GitLab: the branch's latest
 // pipeline jobs (`glab ci get`). Polls every 10 s while anything runs, every 60 s when settled.
 // Click a check to open it; failed ones get Log (a terminal below), Re-run and Fix (Claude).
-// Above the checks, a pipeline strip: PR → CI → Review → Merged, and for Bitropy branches
-// with a ticket (bit-123 in the branch) first Spec (docs/specs, open [QUESTION]s) and
+// Above the checks, a pipeline strip: PR → CI → Review → Merged, and for branches with a
+// ticket of your Linear team (shared "linear.teamKey", e.g. bit-123) first Spec (docs/specs, open [QUESTION]s) and
 // Review loop (docs/reviews/<TICKET>-ledger.md: CONVERGED / CHURN / CAP / ERROR), last
 // the Linear state (shared "linear.states", written by the linear mod).
 
@@ -11,7 +11,6 @@ import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, Scrollbar } from "gpui-base";
 import { spaces, panes, focused, exec, run, theme, knownAgents, layout, readTextFile, shared } from "herdr";
 
-const BITROPY = /github\.com[:/]bitropy\//i;
 
 // team-eng state for a ticket in the checkout `top`: its spec and review-loop ledger.
 async function teamEng(top, ticket, on) {
@@ -210,10 +209,10 @@ export default class Ci extends View {
             : (await sh("glab", ["auth", "status", "--hostname", host], { cwd: top.out, on })).ok ? "gitlab" : "github";
         }
         const res = await providers[provider].refresh(top.out, branch.out, on);
-        const ticket = /(?:^|[^a-z])bit-(\d+)/i.exec(branch.out);
-        const bitropy = BITROPY.test((await sh("git", ["remote", "get-url", "origin"], { cwd: top.out, on })).out);
-        const pipe = { ticket: ticket ? `BIT-${ticket[1]}` : null, bitropy };
-        if (bitropy && pipe.ticket) Object.assign(pipe, await teamEng(top.out, pipe.ticket, on));
+        const key = shared("linear.teamKey");
+        const ticket = key ? new RegExp(`(?:^|[^a-z])${key}-(\\d+)`, "i").exec(branch.out) : null;
+        const pipe = { ticket: ticket ? `${key.toUpperCase()}-${ticket[1]}` : null };
+        if (pipe.ticket) Object.assign(pipe, await teamEng(top.out, pipe.ticket, on));
         if (JSON.stringify(location()) !== context) return;
         Object.assign(this, { repo: top.out, on, branch: branch.out, provider, target: res.target, checks: res.checks, error: null, pipe });
         this.pending = res.checks.some((c) => c.bucket === "pending");
@@ -258,7 +257,7 @@ export default class Ci extends View {
   // Stages as { label, detail, state: done | active | you | fail | todo }.
   stages(overall) {
     const tg = this.target, p = this.pipe ?? {}, out = [];
-    if (p.bitropy && p.ticket) {
+    if (p.ticket) {
       out.push(p.spec
         ? { label: "Spec", state: p.spec.questions ? "you" : "done", detail: p.spec.questions ? `${p.spec.questions} open questions` : p.spec.file }
         : { label: "Spec", state: "todo", detail: `no docs/specs file for ${p.ticket}` });
@@ -274,7 +273,7 @@ export default class Ci extends View {
     const rv = tg?.review;
     out.push({ label: "Review", state: merged || rv === "APPROVED" ? "done" : rv === "CHANGES_REQUESTED" ? "fail" : tg ? "active" : "todo", detail: REVIEW[rv] ?? (tg ? "waiting" : "") });
     out.push({ label: "Merged", state: merged ? "done" : "todo", detail: merged ? "merged" : "" });
-    if (p.ticket && p.bitropy) {
+    if (p.ticket) {
       const st = shared("linear.states")?.[p.ticket];
       out.push({ label: st ?? "Linear", state: st ? (/done|released/i.test(st) ? "done" : /review/i.test(st) ? "active" : "todo") : "todo", detail: st ? `${p.ticket} in Linear: ${st}` : `${p.ticket}: not among your active Linear issues` });
     }

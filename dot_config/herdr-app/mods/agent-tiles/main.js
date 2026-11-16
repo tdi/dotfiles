@@ -1,7 +1,7 @@
 // Agents as a grid of colored tiles: one square per agent, labeled with its
 // space's initials, colored by status. Blocked ones come first, the rest by
 // most recent activity. Agents on another machine get its initial in the top-left
-// corner (from the other computer, M = mini). Hover for the name, click to go there.
+// corner (e.g. M for a machine named "mini"). Hover for the name, click to go there.
 
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
@@ -30,7 +30,7 @@ function expandSidebar() {
   run("layout.resize", { id: "sidebar", px: shared("sidebar.width") ?? 268 });
 }
 
-// "whenubuy-shop-maker" -> WS, "feature-bit-1712-…" -> B1, "portal" -> PO.
+// "my-shop-api" -> MS, "feature-eng-1712-…" -> E1, "portal" -> PO.
 export function initials(name) {
   const words = (name ?? "").split(/[\s\-_/.]+/).filter(Boolean);
   while (words.length > 1 && NOISE.has(words[0].toLowerCase())) words.shift();

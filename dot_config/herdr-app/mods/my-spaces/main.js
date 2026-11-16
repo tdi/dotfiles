@@ -3,12 +3,13 @@
 // its first terminal is in now, only where unusual: branch, ahead/behind. Agent state lives in the agents list, not here. Click to
 // switch, right-click for its menu, drag to reorder.
 //
-// my-spaces additions: spaces are grouped by company, from the GitHub org in the
-// repo's origin (COMPANIES below; anything else is Private), and the real space order
+// my-spaces additions: spaces are grouped by company, from the repo's origin URL matched
+// against ~/.config/herdr-app/companies.json ([{ "name", "match": regex, "color": theme
+// color }]; anything else is Private; no file, no groups), and the real space order
 // follows the groups so ctrl+1..9 match what's shown. A worktree space whose branch's
 // PR is merged (gh) shows "merged · remove", which opens the worktree remove dialog.
-// Running dev stacks (docker compose projects, by their working dir, and portal's Tilt
-// slots) show as a chip on their space's row; click for a menu that stops them. Stacks
+// Running dev stacks (docker compose projects, by their working dir, and Tilt instances on
+// ports 10350-10359, placed by the slot registry in TILT_SLOTS) show as a chip on their space's row; click for a menu that stops them. Stacks
 // whose folder has no space are listed at the bottom, so none keeps running forgotten.
 // New worktrees get their setup steps from ~/.config/herdr-app/worktree-setup.toml
 // (copy .env, mise trust, ...), run once, quietly, with a notification when done.
@@ -42,10 +43,14 @@ const RAIL_CELL = 32;
 const SIDE_MIN = 48;
 const railCell = (el) => h_flex().flex_none().justify_center().child(el);
 const where = (s, ps) => JSON.stringify([s.machine ?? null, place(s, ps)]);
-const COMPANIES = [
-  { name: "Bitropy", match: /github\.com[:/]bitropy\//i, color: "ansi4" },
-  { name: "Whenubuy", match: /github\.com[:/]whenubuy\/|gitlab\.com[:/]com\.whenubuy\//i, color: "ansi3" },
-];
+// Filled from companies.json at start (see the top of this file).
+const COMPANIES = [];
+async function loadCompanies() {
+  try {
+    const list = JSON.parse(await readTextFile(`${appHome()}/companies.json`));
+    COMPANIES.splice(0, COMPANIES.length, ...list.map((c) => ({ name: c.name, match: new RegExp(c.match, "i"), color: c.color ?? "ansi4" })));
+  } catch { /* no file or invalid: no company groups */ }
+}
 const PRIVATE = { name: "Private", color: "ansi5" };
 const companyOf = (url) => COMPANIES.find((c) => c.match.test(url ?? "")) ?? PRIVATE;
 const companyRank = (name) => { const i = COMPANIES.findIndex((c) => c.name === name); return i < 0 ? COMPANIES.length : i; };
@@ -54,6 +59,8 @@ const MERGED_EVERY = 5 * 60000;
 // ---------- dev stacks ----------
 const DEV_EVERY = 30000;
 const TILT_PORTS = Array.from({ length: 10 }, (_, i) => 10350 + i);
+// "<slot> <worktree path>" lines: which checkout runs the Tilt on port 10350 + slot.
+const TILT_SLOTS = "$HOME/.cache/portal-tilt/slots";
 // Tilt's /api/view is over 1 MB (logs): cut down to [name, runtime, update] on the machine.
 const SLIM = `slim() { if command -v jq >/dev/null 2>&1; then jq -c '[.uiResources[]? | [.metadata.name, .status.runtimeStatus, .status.updateStatus]]' 2>/dev/null; else python3 -c 'import json,sys
 try: print(json.dumps([[r["metadata"]["name"], r.get("status",{}).get("runtimeStatus"), r.get("status",{}).get("updateStatus")] for r in json.load(sys.stdin).get("uiResources",[])]))
@@ -61,7 +68,7 @@ except Exception: pass'; fi; }`;
 const DEV_PROBE = [
   SLIM,
   `printf "@@docker\\n"; docker ps --format '{{.Label "com.docker.compose.project"}}|{{.Label "com.docker.compose.project.working_dir"}}|{{.Names}}|{{.RunningFor}}' 2>/dev/null`,
-  'printf "@@slots\\n"; cat "$HOME/.cache/portal-tilt/slots" 2>/dev/null',
+  `printf "@@slots\\n"; cat "${TILT_SLOTS}" 2>/dev/null`,
   ...TILT_PORTS.map((p) => `printf "@@tilt ${p}\\n"; curl -s -m 2 http://127.0.0.1:${p}/api/view 2>/dev/null | slim; echo`),
 ].join("; ");
 
@@ -159,6 +166,7 @@ export default class Spaces extends View {
     this.dev = {}; // machine ("" = here) -> parseDev()
     if (props()?.devMenu) { this.confirm = null; this.probeDev([props().devMenu.on], cx); return; }
     cx.timer.after(1500, (cx) => this.probeDev(null, cx));
+    cx.spawn(async (cx) => { await loadCompanies(); this.git = {}; this.checked = {}; cx.notify(); });
     cx.timer.every(DEV_EVERY, (cx) => this.probeDev(null, cx));
     this.merged = {}; this.mergedAt = {};
     try { this.foldedCo = new Set(JSON.parse(localStorage.getItem("companies.folded") ?? "[]")); } catch { this.foldedCo = new Set(); }
