@@ -1,6 +1,7 @@
 // Agents as a grid of colored tiles: one square per agent, labeled with its
 // space's initials, colored by status. Blocked ones come first, the rest by
-// most recent activity. Hover for the name, click to go there.
+// most recent activity. Agents on another machine get its initial in the top-left
+// corner (from the other computer, M = mini). Hover for the name, click to go there.
 
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
@@ -69,7 +70,9 @@ export default class AgentTiles extends View {
       const fill = idle ? t.raised : alpha(color, a.status === "working" ? 0.22 : 0.3);
       const label = initials(a.space_name);
       const many = perSpace.get(a.space) > 1;
-      const tip = [a.space_name, many ? `tab ${a.tab_name || a.tab_index + 1}` : null, a.status, a.title]
+      // An agent on another machine has an address like "mini/t7": mark the tile with it.
+      const machine = a.address.includes("/") ? a.address.split("/")[0] : null;
+      const tip = [a.space_name, machine ? `on ${machine}` : null, many ? `tab ${a.tab_name || a.tab_index + 1}` : null, a.status, a.title]
         .filter(Boolean)
         .join(" · ");
       return div()
@@ -98,6 +101,9 @@ export default class AgentTiles extends View {
             div().absolute().top(4).right(4).w(6).h(6).rounded(3).bg(color)
               .loop("opacity", { from: 0.25, to: 1, period: 1200 }),
           ),
+        )
+        .when(Boolean(machine), (el) =>
+          el.child(div().absolute().top(1).left(3).text_size(8.5).font_semibold().text_color(t.accent).child(machine.slice(0, 1).toUpperCase())),
         )
         .when(many, (el) =>
           el.child(div().absolute().bottom(1).right(4).text_size(9).text_color(t.dim).child(String(a.tab_index + 1))),

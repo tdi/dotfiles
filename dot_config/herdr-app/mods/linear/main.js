@@ -5,31 +5,62 @@
 // Config: the herdr plugin's file (~/.config/herdr/plugins/config/tdi.worktree-from-linear/
 // config.json, or config.yml holding JSON), else LINEAR_API_KEY from the environment.
 // Keys used: linearApiKey, teamKey, issueLimit, assignedToMe, includeTriage, base, repos,
-// worktreeRoot (default ~/.herdr/worktrees; checkouts go to <root>/<repo>/<branch slug>).
+// worktreeRoot (default ~/.herdr/worktrees; checkouts go to <root>/<repo>/<branch slug>),
+// agentMachine: the machine heavy work goes to (worktree + Claude), e.g. "mini". Viewed
+// from another computer connected to it, Start makes the worktree and space there;
+// "Here (light)" starts on the computer you're at. Repos given in `repos` are paths on
+// agentMachine. The team-eng skill buttons show only for repos whose origin is the
+// Bitropy GitHub org.
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, Scrollbar, TextView } from "gpui-base";
-import { spaces, panes, focused, exec, run, theme, home, readTextFile, knownAgents } from "herdr";
+import { spaces, panes, focused, exec, run, theme, home, readTextFile, knownAgents, machines, setShared } from "herdr";
 
 const ENDPOINT = "https://api.linear.app/graphql";
 const REFRESH_MS = 5 * 60_000;
 const STATE_ORDER = { started: 0, unstarted: 1, triage: 2, backlog: 3 };
 const slug = (branch) => branch.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
 const tilde = (p) => (p && p.startsWith(home()) ? `~${p.slice(home().length)}` : p);
+const BITROPY = /github\.com[:/]bitropy\//i;
+const SKILLS = [
+  { id: "spec-draft", label: "Spec draft", task: (i) => `/team-eng:spec-draft ${i.identifier}` },
+  { id: "spec-loop", label: "Spec loop", task: (i) => `/team-eng:spec-loop ${i.identifier}` },
+  { id: "spec-implement", label: "Implement spec", task: (i) => `/team-eng:spec-implement docs/specs/${i.identifier}.md` },
+];
+
+// $HOME on a machine (null = here), asked once.
+const homes = new Map();
+async function homeOn(on) {
+  if (!on) return home();
+  if (!homes.has(on)) {
+    const r = await exec("sh", ["-c", 'printf %s "$HOME"'], { on }).catch(() => null);
+    if (!r || r.code !== 0 || !r.stdout.trim()) throw new Error(`Can't reach ${on}.`);
+    homes.set(on, r.stdout.trim());
+  }
+  return homes.get(on);
+}
+const expand = async (p, on) => (p ? p.replace(/^~(?=\/|$)/, await homeOn(on)) : p);
 
 // ---------- config ----------
 
 const lenientJson = (text) => JSON.parse(text.replace(/^\s*\/\/.*$/gm, "").replace(/,(\s*[}\]])/g, "$1"));
 
+// The config file here, else on a connected machine (the agent machine keeps the key).
 async function loadConfig() {
-  const dir = `${home()}/.config/herdr/plugins/config/tdi.worktree-from-linear`;
+  const rel = ".config/herdr/plugins/config/tdi.worktree-from-linear";
   let config = {}, source = null;
-  for (const name of ["config.json", "config.yml"]) {
-    const text = await readTextFile(`${dir}/${name}`).catch(() => null);
-    if (text === null) continue;
-    try { config = lenientJson(text); source = `${dir}/${name}`; break; }
-    catch (e) { throw new Error(`${tilde(dir)}/${name} is not valid JSON: ${e.message ?? e}`); }
+  const places = [null, ...machines().filter((m) => m.name && !m.temporary && m.layout !== "unavailable").map((m) => m.name)];
+  search: for (const on of places) {
+    const dir = `${await homeOn(on).catch(() => null)}/${rel}`;
+    if (dir.startsWith("null")) continue;
+    for (const name of ["config.json", "config.yml"]) {
+      const text = await readTextFile(`${dir}/${name}`, on ? { on } : undefined).catch(() => null);
+      if (text === null) continue;
+      try { config = lenientJson(text); source = `${on ? `${on}:` : ""}${dir}/${name}`; break search; }
+      catch (e) { throw new Error(`${tilde(dir)}/${name} is not valid JSON: ${e.message ?? e}`); }
+    }
   }
+  const dir = `~/${rel}`;
   let key = config.linearApiKey;
   if (!key) {
     for (const [sh, args] of [["sh", ["-c"]], ["zsh", ["-lc"]]]) {
@@ -69,22 +100,24 @@ const DETAIL_QUERY = `query($id: String!) { issue(id: $id) { description project
 
 // ---------- git ----------
 
-async function git(cwd, args, timeout) {
-  const r = await exec("git", args, { cwd, ...(timeout ? { timeout } : {}) });
+async function git(cwd, args, timeout, on) {
+  const r = await exec("git", args, { cwd, ...(timeout ? { timeout } : {}), ...(on ? { on } : {}) });
   return { ok: r.code === 0, out: (r.stdout ?? "").trim(), err: (r.stderr || r.stdout || "").trim() };
 }
 
 // The main checkout of the repo `folder` is in (a linked worktree resolves to its main repo).
-async function repoOf(folder) {
+// { main, name, on, bitropy }: on = the machine it's on (null = here).
+async function repoOf(folder, on = null) {
   if (!folder) return null;
-  const common = await git(folder, ["rev-parse", "--path-format=absolute", "--git-common-dir"]);
+  const common = await git(folder, ["rev-parse", "--path-format=absolute", "--git-common-dir"], 0, on);
   if (!common.ok) return null;
   const main = common.out.endsWith("/.git") ? common.out.slice(0, -5) : common.out;
-  return { main, name: main.split("/").pop() };
+  const origin = await git(main, ["remote", "get-url", "origin"], 0, on);
+  return { main, name: main.split("/").pop(), on, bitropy: origin.ok && BITROPY.test(origin.out) };
 }
 
-async function worktreeFor(repo, branch) {
-  const list = await git(repo, ["worktree", "list", "--porcelain"]);
+async function worktreeFor(repo, branch, on) {
+  const list = await git(repo, ["worktree", "list", "--porcelain"], 0, on);
   if (!list.ok) return null;
   for (const block of list.out.split(/\n\n+/)) {
     const lines = block.split("\n");
@@ -94,11 +127,11 @@ async function worktreeFor(repo, branch) {
 }
 
 // Where the new branch starts: { ref, fetch } per config.base ("default" | "head" | a branch).
-async function baseRef(repo, base) {
+async function baseRef(repo, base, on) {
   if (base === "head") return { ref: "HEAD", fetch: null };
   let branch = base;
   if (!base || base === "default") {
-    const r = await git(repo, ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"]);
+    const r = await git(repo, ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"], 0, on);
     branch = (r.ok && r.out.replace(/^origin\//, "")) || "main";
   }
   return { ref: `origin/${branch}`, fetch: branch };
@@ -106,11 +139,12 @@ async function baseRef(repo, base) {
 
 // ---------- the panel ----------
 
+// The focused terminal's folder and the machine it's on.
 const focusFolder = () => {
   const f = focused(), pane = f?.pane ? panes().find((p) => p.pane === f.pane) : null;
   const space = spaces().find((s) => s.active);
-  if (space?.machine) return null; // worktrees are made on this computer only, for now
-  return pane?.cwd || f?.cwd || space?.folder || null;
+  const folder = pane?.cwd || f?.cwd || space?.folder || null;
+  return folder ? { folder, on: space?.machine ?? null } : null;
 };
 
 export default class Linear extends View {
@@ -137,6 +171,8 @@ export default class Linear extends View {
         this.issues = data.issues.nodes.sort((a, b) =>
           (STATE_ORDER[a.state.type] ?? 9) - (STATE_ORDER[b.state.type] ?? 9) || b.state.position - a.state.position);
         this.error = null; this.at = Date.now();
+        // For the CI panel's pipeline strip: each listed issue's Linear state.
+        setShared("linear.states", Object.fromEntries(this.issues.map((i) => [i.identifier, i.state.name])));
       } catch (e) { this.error = String(e?.message ?? e); }
       finally { this.loading = false; cx.notify(); }
     });
@@ -144,13 +180,39 @@ export default class Linear extends View {
 
   // The repo Start uses when the team isn't in config.repos: the one the focused terminal is in.
   syncRepo(cx) {
-    const folder = focusFolder();
-    if (folder === this.repoFolder) return;
-    this.repoFolder = folder;
+    const f = focusFolder();
+    const key = f ? `${f.on ?? ""}:${f.folder}` : null;
+    if (key === this.repoKey) return;
+    this.repoKey = key;
     cx.spawn(async (cx) => {
-      const repo = await repoOf(folder).catch(() => null);
-      if (this.repoFolder === folder) { this.repo = repo; cx.notify(); }
+      const repo = f ? await repoOf(f.folder, f.on).catch(() => null) : null;
+      if (this.repoKey === key) { this.repo = repo; cx.notify(); }
     });
+  }
+
+  // Where heavy work goes: config.agentMachine when it's a connected machine, else here
+  // (on that machine itself, agentMachine is this computer).
+  heavy() {
+    const name = this.config?.agentMachine;
+    return name && machines().some((m) => m.name === name) ? name : null;
+  }
+
+  // The checkout to branch from on machine `on`: repos[team] (paths on the agent machine),
+  // else the focused repo when it's on that machine, else ~/Projects/<same name> there.
+  async repoFor(issue, on) {
+    const mapped = this.config.repos?.[issue.team.key];
+    if (mapped && on === this.heavy()) {
+      const r = await repoOf(await expand(mapped, on), on);
+      if (!r) throw new Error(`${mapped} (repos.${issue.team.key}) is not a git repo${on ? ` on ${on}` : ""}.`);
+      return r;
+    }
+    if (this.repo && this.repo.on === on) return this.repo;
+    if (this.repo) {
+      const r = await repoOf(`${await homeOn(on)}/Projects/${this.repo.name}`, on);
+      if (r) return r;
+      throw new Error(`No ~/Projects/${this.repo.name} on ${on ?? "this computer"}.`);
+    }
+    throw new Error(`Focus a terminal inside a git repo, or map team ${issue.team.key} in "repos".`);
   }
 
   // The space and tab whose terminal is on this issue's branch.
@@ -178,50 +240,56 @@ export default class Linear extends View {
     cx.notify();
   }
 
-  start(issue, withAgent, cx) {
+  // opts: { agent, here, skill }. Heavy by default: on the agent machine.
+  start(issue, opts, cx) {
     if (this.busy[issue.id]) return;
-    this.busy[issue.id] = withAgent ? "Starting Claude…" : "Creating worktree…"; delete this.errors[issue.id];
+    const on = opts.here ? null : this.heavy();
+    const where = on ? ` on ${on}` : "";
+    this.busy[issue.id] = opts.agent ? `Starting Claude${where}…` : `Creating worktree${where}…`; delete this.errors[issue.id];
     cx.notify();
     cx.spawn(async (cx) => {
       try {
         const branch = issue.branchName;
         if (!branch) throw new Error("This issue has no branch name in Linear.");
-        const mapped = this.config.repos?.[issue.team.key];
-        const repo = mapped ? await repoOf(mapped) : this.repo;
-        if (!repo) throw new Error(mapped ? `${mapped} (repos.${issue.team.key}) is not a git repo.` : `Focus a terminal inside a git repo, or map team ${issue.team.key} in "repos".`);
-        let path = await worktreeFor(repo.main, branch);
+        const link = opts.here ? null : this.linkOf(issue);
+        let argv, task;
+        if (opts.agent) {
+          const agents = await knownAgents(on ? { on } : undefined).catch(() => []);
+          argv = agents.find((a) => a.key === "claude")?.run ?? ["claude"];
+          const d = this.details[issue.id];
+          task = opts.skill ? opts.skill.task(issue) : [`Work on Linear issue ${issue.identifier}: ${issue.title}`, issue.url,
+            d?.description ? `\n${d.description.slice(0, 4000)}` : ""].filter(Boolean).join("\n");
+        }
+        // Already worked on in a space: a new tab there (its folder), or just go to it.
+        if (link) {
+          if (!opts.agent) { run("space.select", { id: link.space.id }); run("tab.select", { id: link.tab.id }); return; }
+          run("tab.new", { space: link.space.id, name: opts.skill ? opts.skill.label : issue.identifier, argv, task });
+          return;
+        }
+        const repo = await this.repoFor(issue, on);
+        if (opts.skill && !repo.bitropy) throw new Error(`${repo.name} is not a Bitropy repo; team-eng skills run only there.`);
+        let path = await worktreeFor(repo.main, branch, on);
         if (!path) {
-          const root = (this.config.worktreeRoot ?? "~/.herdr/worktrees").replace(/^~(?=\/|$)/, home());
+          const root = await expand(this.config.worktreeRoot ?? "~/.herdr/worktrees", on);
           path = `${root}/${repo.name}/${slug(branch)}`;
-          const local = await git(repo.main, ["rev-parse", "--verify", "--quiet", `refs/heads/${branch}`]);
-          const remote = !local.ok && (await git(repo.main, ["rev-parse", "--verify", "--quiet", `refs/remotes/origin/${branch}`])).ok;
+          const local = await git(repo.main, ["rev-parse", "--verify", "--quiet", `refs/heads/${branch}`], 0, on);
+          const remote = !local.ok && (await git(repo.main, ["rev-parse", "--verify", "--quiet", `refs/remotes/origin/${branch}`], 0, on)).ok;
           let args;
           if (local.ok || remote) args = ["worktree", "add", path, branch];
           else {
-            const base = await baseRef(repo.main, this.config.base);
+            const base = await baseRef(repo.main, this.config.base, on);
             if (base.fetch) {
-              this.busy[issue.id] = `Fetching origin/${base.fetch}…`; cx.notify();
-              const f = await git(repo.main, ["fetch", "origin", base.fetch], 120_000);
+              this.busy[issue.id] = `Fetching origin/${base.fetch}${where}…`; cx.notify();
+              const f = await git(repo.main, ["fetch", "origin", base.fetch], 120_000, on);
               if (!f.ok) throw new Error(`git fetch origin ${base.fetch}: ${f.err.split("\n").pop()}`);
             }
             // --no-track: the branch shouldn't push to the base branch.
             args = ["worktree", "add", "--no-track", "-b", branch, path, base.ref];
           }
-          const add = await git(repo.main, args, 120_000);
+          const add = await git(repo.main, args, 120_000, on);
           if (!add.ok) throw new Error(`git worktree add: ${add.err.split("\n").pop()}`);
         }
-        const link = this.linkOf(issue);
-        if (link && !withAgent) { run("space.select", { id: link.space.id }); run("tab.select", { id: link.tab.id }); return; }
-        let argv, task;
-        if (withAgent) {
-          const agents = await knownAgents().catch(() => []);
-          argv = agents.find((a) => a.key === "claude")?.run ?? ["claude"];
-          const d = this.details[issue.id];
-          task = [`Work on Linear issue ${issue.identifier}: ${issue.title}`, issue.url,
-            d?.description ? `\n${d.description.slice(0, 4000)}` : ""].filter(Boolean).join("\n");
-        }
-        if (link) run("tab.new", { space: link.space.id, folder: path, name: issue.identifier, argv, task });
-        else run("space.new", { folder: path, name: issue.identifier, argv, task });
+        run("space.new", { folder: path, name: issue.identifier, argv, task, machine: on ?? "" });
       } catch (e) { this.errors[issue.id] = String(e?.message ?? e); }
       finally { delete this.busy[issue.id]; cx.notify(); }
     });
@@ -254,9 +322,15 @@ export default class Linear extends View {
         .when(Boolean(link), (el) => el.child(this.button(`go-${issue.id}`, `Go to ${link.space.name}`, t, true,
           () => { run("space.select", { id: link.space.id }); run("tab.select", { id: link.tab.id }); })))
         .when(!link, (el) => el
-          .child(this.button(`wt-${issue.id}`, "Worktree", t, true, (cx) => this.start(issue, false, cx)))
-          .child(this.button(`cl-${issue.id}`, "Worktree + Claude", t, false, (cx) => this.start(issue, true, cx))))
+          .child(this.button(`wt-${issue.id}`, "Worktree", t, true, (cx) => this.start(issue, {}, cx)))
+          .child(this.button(`cl-${issue.id}`, "Worktree + Claude", t, false, (cx) => this.start(issue, { agent: true }, cx))))
+        .when(Boolean(this.heavy()), (el) => el.child(this.button(`here-${issue.id}`, "Here (light)", t, false,
+          (cx) => this.start(issue, { agent: true, here: true }, cx))))
         .child(this.button(`url-${issue.id}`, "Open in Linear", t, false, () => exec("open", [issue.url]))))
+      .when(Boolean(this.repo?.bitropy), (el) => el.child(h_flex().gap(6).flex_wrap().items_center()
+        .child(div().text_size(10.5).text_color(t.dim).child("team-eng"))
+        .children(SKILLS.map((k) => this.button(`${k.id}-${issue.id}`, k.label, t, false,
+          (cx) => this.start(issue, { agent: true, skill: k }, cx))))))
       .when(Boolean(this.busy[issue.id]), (el) => el.child(div().text_size(11).text_color(t.working).child(this.busy[issue.id])))
       .when(Boolean(this.errors[issue.id]), (el) => el.child(div().text_size(11).text_color(t.blocked).child(this.errors[issue.id])))
       .child(div().text_size(12).text_color(t.foreground).child(TextView.markdown(`md-${issue.id}`, body).selectable(true)))
@@ -325,7 +399,9 @@ export default class Linear extends View {
           .when(!shown.length, (e) => e.child(div().p(8).text_color(this.error ? t.blocked : t.dim).child(empty))))
         .child(Scrollbar.vertical("linear-list").absolute().inset_0()))
       .child(h_flex().flex_none().h(28).px(12).gap(6).items_center().border_t(1).border_color(t.border).text_size(10.5).text_color(t.dim)
-        .child(div().flex_1().min_w(0).truncate().child(this.repo ? `New worktrees from ${this.repo.name} (${this.config?.base ?? "default"} branch)` : "Focus a repo's terminal to start issues there"))
+        .child(div().flex_1().min_w(0).truncate().child(this.repo
+          ? `New worktrees from ${this.repo.name}${this.heavy() ? ` on ${this.heavy()}` : ""}${this.repo.bitropy ? " · Bitropy" : ""}`
+          : "Focus a repo's terminal to start issues there"))
         .when(Boolean(this.at), (e) => e.child(div().flex_none().child(new Date(this.at).toTimeString().slice(0, 5)))));
   }
 }
