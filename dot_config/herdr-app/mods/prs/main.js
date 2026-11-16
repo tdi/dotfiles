@@ -87,7 +87,9 @@ export default class Prs extends View {
     const loc = location(), context = JSON.stringify([loc, this.filter]);
     if (context !== this.context) { this.context = context; this.items = []; this.error = null; this.repo = null; }
     if (!loc.cwd) { this.error = "No folder"; return; }
-    this.loading = true; cx.notify();
+    // No cx.notify() here: render calls this, and notifying during render is refused.
+    // The spinner shows on the next redraw; the task notifies when done.
+    this.loading = true;
     cx.spawn(async (cx) => {
       try {
         const { cwd, on } = loc;

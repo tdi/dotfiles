@@ -1,11 +1,20 @@
 // Agents as a grid of colored tiles: one square per agent, labeled with its
-// space's initials, colored by status. Blocked ones come first, the rest by
-// most recent activity. Agents on another machine get its initial in the top-left
-// corner (e.g. M for a machine named "mini"). Hover for the name, click to go there.
+// space's initials, colored by status. What needs you comes first and stands out:
+// blocked (solid red, pulsing ring), then done (solid green), each with how long it has
+// waited; then the rest by most recent activity. Agents on another machine get its
+// initial in the top-left corner. Hover for the name, click to go there.
+//
+// Coming back: when the window becomes active again after AWAY_MS, a "While you were
+// away" dialog lists what finished or got blocked meanwhile. The Dock badge shows how
+// many agents need you.
 
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { agents, theme, run, layout, setAgentOrder, shared, setShared, window } from "herdr";
+import { agents, theme, run, layout, setAgentOrder, shared, setShared, window, setBadge, openOverlay, closeOverlay, props } from "herdr";
+
+const AWAY_MS = 2 * 60_000;
+const NEEDS = { blocked: 2, done: 1 };
+const ago = (ms) => { const m = Math.round(ms / 60_000); return m < 1 ? "now" : m < 60 ? `${m}m` : `${Math.floor(m / 60)}h${m % 60 ? `${m % 60}m` : ""}`; };
 
 const TILE = 38;
 const GAP = 6;
@@ -46,13 +55,83 @@ function alpha(hex, a) {
 }
 
 export default class AgentTiles extends View {
+  init(_props, cx) {
+    this.since = {}; // address -> { status, at }: when it got its current status (null: before we looked)
+    if (props()?.away) return; // the dialog copy
+    this.active = window()?.active ?? true;
+    this.leftAt = this.active ? null : Date.now();
+    cx.timer.every(2000, (cx) => this.watchWindow(cx));
+  }
+
+  // Remember when each agent changed status; the first sighting has no time.
+  track(all) {
+    const now = Date.now(), seen = new Set();
+    for (const a of all) {
+      seen.add(a.address);
+      const s = this.since[a.address];
+      if (!s) this.since[a.address] = { status: a.status, at: null };
+      else if (s.status !== a.status) this.since[a.address] = { status: a.status, at: now };
+    }
+    for (const k of Object.keys(this.since)) if (!seen.has(k)) delete this.since[k];
+  }
+
+  watchWindow(cx) {
+    const active = window()?.active ?? true;
+    if (active === this.active) return;
+    this.active = active;
+    if (!active) { this.leftAt = Date.now(); return; }
+    const left = this.leftAt;
+    this.leftAt = null;
+    if (!left || Date.now() - left < AWAY_MS) return;
+    const changed = agents().filter((a) => NEEDS[a.status] && (this.since[a.address]?.at ?? 0) >= left)
+      .map((a) => ({ address: a.address, pane: a.pane, space: a.space_name, status: a.status, title: a.title, at: this.since[a.address].at }));
+    if (!changed.length) return;
+    changed.sort((x, y) => NEEDS[y.status] - NEEDS[x.status] || x.at - y.at);
+    openOverlay({ mod: "agent-tiles", kind: "dialog", width: 440, height: Math.min(120 + changed.length * 40, 460),
+      props: { away: { since: left, items: changed } } });
+  }
+
+  // The dialog copy: what finished or got blocked while you were away.
+  awayDialog(t) {
+    const { since, items } = props().away;
+    const now = Date.now();
+    const go = (it) => { closeOverlay(props().overlay); run("pane.focus", { pane: it.pane }); };
+    return v_flex().size_full().p(16).gap(10).bg(t.popover).text_color(t.foreground).text_size(13)
+      .child(v_flex().gap(2)
+        .child(div().text_size(15).font_semibold().child("While you were away"))
+        .child(div().text_size(11.5).text_color(t.dim).child(`${ago(now - since)} · ${items.filter((i) => i.status === "blocked").length} waiting for you · ${items.filter((i) => i.status === "done").length} finished`)))
+      .child(v_flex().id("away-list").flex_1().min_h(0).gap(4).overflow_y_scrollbar()
+        .children(items.map((it, i) => h_flex().id(`away-${i}`).h(36).px(10).gap(10).flex_none().items_center().rounded(7).cursor_pointer()
+          .bg(t.raised).border_1().border_color(it.status === "blocked" ? t.blocked : t.border).hover((s) => s.bg(t.hover))
+          .on_click(() => go(it))
+          .child(div().size(9).rounded(5).flex_none().bg(t[it.status]))
+          .child(v_flex().flex_1().min_w(0)
+            .child(div().truncate().font_medium().child(it.space))
+            .child(div().truncate().text_size(11).text_color(t.dim).child(it.title || "")))
+          .child(div().flex_none().text_size(11).text_color(t[it.status]).child(it.status === "blocked" ? "waiting" : "done"))
+          .child(div().flex_none().w(40).text_size(11).text_color(t.dim).child(ago(now - it.at))))))
+      .child(h_flex().gap(8).justify_end()
+        .child(div().id("away-close").px(10).h(26).flex().items_center().rounded(6).cursor_pointer().bg(t.raised).border_1().border_color(t.border)
+          .on_click(() => closeOverlay(props().overlay)).child("Close"))
+        .child(div().id("away-first").px(10).h(26).flex().items_center().rounded(6).cursor_pointer().bg(t.solid).text_color(t.solid_foreground)
+          .on_click(() => go(items[0])).child(items[0].status === "blocked" ? "Go to the first waiting" : "Go to the first")));
+  }
+
   render() {
     const t = theme();
+    if (props()?.away) return this.awayDialog(t);
     const all = agents();
-    // Blocked first, then by activity: the agent whose status changed most recently
-    // (higher seq) leads, so busy agents sit at the front and long-idle ones drift back.
-    const list = [...all].sort((x, y) => (y.status === "blocked") - (x.status === "blocked") || y.seq - x.seq);
+    this.track(all);
+    const now = Date.now();
+    // What needs you first (blocked, then done, longest waiting first), then by activity:
+    // the agent whose status changed most recently (higher seq) leads.
+    const waited = (a) => this.since[a.address]?.at ?? 0;
+    const list = [...all].sort((x, y) => (NEEDS[y.status] ?? 0) - (NEEDS[x.status] ?? 0)
+      || (NEEDS[x.status] ? waited(x) - waited(y) : 0) || y.seq - x.seq);
     setAgentOrder(list.map((a) => a.address));
+    const needs = list.filter((a) => NEEDS[a.status]);
+    const badge = needs.length ? String(needs.length) : null;
+    if (badge !== this.badge) { this.badge = badge; setBadge(badge); }
 
     // A space with several agents: each tile also shows its tab number.
     const perSpace = new Map();
@@ -60,19 +139,26 @@ export default class AgentTiles extends View {
 
     const counts = {};
     for (const a of list) counts[a.status] = (counts[a.status] ?? 0) + 1;
-    const summary = ["blocked", "done", "working"]
-      .filter((s) => counts[s])
-      .map((s) => div().text_color(t[s]).child(`${counts[s]} ${s}`));
+    const urgent = counts.blocked ? "blocked" : "done";
+    const summary = [
+      ...(needs.length ? [div().id("needs").px(7).h(20).flex().items_center().rounded(10).bg(t[urgent]).text_color(t.background).font_semibold()
+        .cursor_pointer().tooltip("Go to the one that has waited longest").on_click(() => run("pane.focus", { pane: needs[0].pane }))
+        .child(`${needs.length} need${needs.length > 1 ? "" : "s"} you`)] : []),
+      ...(counts.working ? [div().text_color(t.working).child(`${counts.working} working`)] : []),
+    ];
 
     const tile = (a) => {
       const color = t[a.status] ?? t.unknown ?? t.dim;
       const idle = a.status === "idle" || !RANK[a.status];
-      const fill = idle ? t.raised : alpha(color, a.status === "working" ? 0.22 : 0.3);
+      const need = Boolean(NEEDS[a.status]);
+      const fill = idle ? t.raised : need ? color : alpha(color, 0.22);
+      const at = this.since[a.address]?.at;
       const label = initials(a.space_name);
       const many = perSpace.get(a.space) > 1;
       // An agent on another machine has an address like "mini/t7": mark the tile with it.
       const machine = a.address.includes("/") ? a.address.split("/")[0] : null;
-      const tip = [a.space_name, machine ? `on ${machine}` : null, many ? `tab ${a.tab_name || a.tab_index + 1}` : null, a.status, a.title]
+      const tip = [a.space_name, machine ? `on ${machine}` : null, many ? `tab ${a.tab_name || a.tab_index + 1}` : null,
+        need && at ? `${a.status === "blocked" ? "waiting" : "done"} ${ago(now - at)}` : a.status, a.title]
         .filter(Boolean)
         .join(" · ");
       return div()
@@ -90,12 +176,20 @@ export default class AgentTiles extends View {
         .border_color(a.focused ? t.accent : idle ? t.border : color)
         .text_size(12.5)
         .font_semibold()
-        .text_color(idle ? t.dim : t.foreground)
+        .text_color(idle ? t.dim : need ? t.background : t.foreground)
         .cursor_pointer()
-        .hover((s) => s.bg(idle ? t.hover : alpha(color, 0.45)))
+        .hover((s) => s.bg(idle ? t.hover : need ? alpha(color, 0.8) : alpha(color, 0.45)))
         .tooltip(tip)
         .on_click(() => run("pane.focus", { pane: a.pane }))
         .child(label)
+        // Blocked: a ring pulsing around the tile, so it's seen from across the room.
+        .when(a.status === "blocked", (el) =>
+          el.child(div().absolute().top(-4).left(-4).w(TILE + 8).h(TILE + 8).rounded(10).border(2).border_color(color)
+            .loop("opacity", { from: 0.15, to: 1, period: 1000 })),
+        )
+        .when(need && Boolean(at), (el) =>
+          el.child(div().absolute().bottom(1).left(3).text_size(8.5).font_semibold().text_color(t.background).child(ago(now - at))),
+        )
         .when(a.status === "working", (el) =>
           el.child(
             div().absolute().top(4).right(4).w(6).h(6).rounded(3).bg(color)
@@ -106,13 +200,14 @@ export default class AgentTiles extends View {
           el.child(div().absolute().top(1).left(3).text_size(8.5).font_semibold().text_color(t.accent).child(machine.slice(0, 1).toUpperCase())),
         )
         .when(many, (el) =>
-          el.child(div().absolute().bottom(1).right(4).text_size(9).text_color(t.dim).child(String(a.tab_index + 1))),
+          el.child(div().absolute().bottom(1).right(4).text_size(9).text_color(need ? t.background : t.dim).child(String(a.tab_index + 1))),
         );
     };
 
     const grid = h_flex()
       .flex_wrap()
-      .gap(GAP)
+      .gap(GAP + 2)
+      .p(4)
       .when(narrow(), (el) => el.justify_center())
       .children(list.map(tile));
 
