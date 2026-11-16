@@ -100,8 +100,15 @@ function issuesQuery(config, mine) {
   if (config.teamKey) parts.push(`team: { key: { eq: ${JSON.stringify(config.teamKey)} } }`);
   if (mine) parts.push("assignee: { isMe: { eq: true } }");
   return `query($first: Int!) { issues(first: $first, orderBy: updatedAt, filter: { ${parts.join(", ")} }) {
-    nodes { id identifier title branchName url priority priorityLabel
-      state { name type position } assignee { displayName } team { key } labels { nodes { name } } } } }`;
+    nodes { ${ISSUE_FIELDS} } } }`;
+}
+
+const ISSUE_FIELDS = `id identifier title branchName url priority priorityLabel
+      state { name type position } assignee { displayName } team { key } labels { nodes { name } }`;
+// Linear's own search, for matches beyond the loaded active issues (any state).
+function searchQuery(config) {
+  const team = config.teamKey ? `, filter: { team: { key: { eq: ${JSON.stringify(config.teamKey)} } } }` : "";
+  return `query($t: String!) { searchIssues(term: $t, first: 25${team}) { nodes { ${ISSUE_FIELDS} } } }`;
 }
 
 const DETAIL_QUERY = `query($id: String!) { issue(id: $id) { description project { name } cycle { number name }
@@ -163,7 +170,16 @@ export default class Linear extends View {
     this.mine = JSON.parse(localStorage.getItem("mine") ?? "null");
     this.filter = "";
     this.input = InputState.new({ placeholder: "Filter issues" });
-    this.input.on("change", (_e, cx) => { this.filter = this.input.value().trim().toLowerCase(); cx.notify(); });
+    this.handle = cx.focus_handle();
+    this.found = []; this.searchSeq = 0;
+    this.input.on("change", (_e, cx) => {
+      this.filter = this.input.value().trim().toLowerCase();
+      // Ask Linear once typing pauses (400 ms), for issues not in the loaded list.
+      const seq = ++this.searchSeq;
+      if (this.filter.length < 2) this.found = [];
+      else cx.timer.after(400, (cx) => this.search(seq, cx));
+      cx.notify();
+    });
     this.input.on("focus", (_e, cx) => { this.typing = true; cx.notify(); });
     this.input.on("blur", (_e, cx) => { this.typing = false; cx.notify(); });
     this.refresh(cx);
@@ -187,6 +203,22 @@ export default class Linear extends View {
         setShared("linear.states", Object.fromEntries(this.issues.map((i) => [i.identifier, i.state.name])));
       } catch (e) { this.error = String(e?.message ?? e); }
       finally { this.loading = false; cx.notify(); }
+    });
+  }
+
+  search(seq, cx) {
+    if (seq !== this.searchSeq || !this.config || this.filter.length < 2) return;
+    const term = this.filter;
+    this.searching = true; cx.notify();
+    cx.spawn(async (cx) => {
+      try {
+        const nodes = (await gql(this.config, searchQuery(this.config), { t: term })).searchIssues.nodes;
+        if (seq !== this.searchSeq) return;
+        const have = new Set(this.issues.map((i) => i.id));
+        this.found = nodes.filter((i) => !have.has(i.id));
+        this.searchError = null;
+      } catch (e) { if (seq === this.searchSeq) this.searchError = String(e?.message ?? e); }
+      finally { if (seq === this.searchSeq) { this.searching = false; cx.notify(); } }
     });
   }
 
@@ -414,9 +446,13 @@ export default class Linear extends View {
     const chip = (id, label, on, action) => div().id(id).px(7).h(22).flex().items_center().rounded(6).text_size(11).cursor_pointer()
       .border_1().border_color(on ? t.accent : t.border).text_color(on ? t.foreground : t.muted).hover((s) => s.bg(t.hover))
       .on_click((_e, cx) => action(cx)).child(label);
-    const empty = this.error ?? (this.loading ? "Loading issues…" : this.issues.length ? "No issues match" : "No active issues");
+    const found = f.length >= 2 ? this.found : [];
+    const empty = this.error ?? (this.loading ? "Loading issues…" : this.searching ? "Searching Linear…" : this.issues.length ? "No issues match" : "No active issues");
     return v_flex().id("linear").size_full().min_h(0).rounded(10).overflow_hidden().bg(t.background).border_1().border_color(t.border)
-      .text_color(t.foreground).text_size(13)
+      .text_color(t.foreground).text_size(13).track_focus(this.handle)
+      .on_key_down((e, cx) => {
+        if (e.key === "escape" && this.typing) { this.typing = false; this.handle.focus(); cx.stop_propagation(); cx.notify(); }
+      })
       .child(h_flex().h(42).flex_none().px(14).gap(8).items_center().border_b(1).border_color(t.border)
         .child(div().font_semibold().child("Linear"))
         .when(Boolean(this.config?.teamKey), (e) => e.child(div().px(5).py(1).rounded(4).border_1().border_color(t.border).text_size(10).text_color(t.muted).child(this.config.teamKey)))
@@ -438,7 +474,13 @@ export default class Linear extends View {
               .child(div().child(g.name.toUpperCase())).child(div().child(String(g.items.length))),
             ...g.items.map((i) => this.row(i, t)),
           ]))
-          .when(!shown.length, (e) => e.child(div().p(8).text_color(this.error ? t.blocked : t.dim).child(empty))))
+          .when(found.length > 0 || (f.length >= 2 && this.searching), (e) => e.children([
+            h_flex().id("g-search").flex_none().px(8).pt(10).pb(3).gap(6).text_size(10.5).text_color(t.dim)
+              .child(div().child("MORE IN LINEAR")).child(div().child(this.searching ? "…" : String(found.length))),
+            ...found.map((i) => this.row(i, t)),
+          ]))
+          .when(Boolean(this.searchError) && f.length >= 2, (e) => e.child(div().px(8).text_size(11).text_color(t.blocked).child(this.searchError)))
+          .when(!shown.length && !found.length, (e) => e.child(div().p(8).text_color(this.error ? t.blocked : t.dim).child(empty))))
         .child(Scrollbar.vertical("linear-list").absolute().inset_0()))
       .child(h_flex().flex_none().h(28).px(12).gap(6).items_center().border_t(1).border_color(t.border).text_size(10.5).text_color(t.dim)
         .child(div().flex_1().min_w(0).truncate().child(this.repo
