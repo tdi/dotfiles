@@ -41,6 +41,15 @@ async function homeOn(on) {
 }
 const expand = async (p, on) => (p ? p.replace(/^~(?=\/|$)/, await homeOn(on)) : p);
 
+// Main checkouts of Bitropy repos in ~/Projects on machine `on`: [{ name, main, on, bitropy }].
+async function bitropyRepos(on) {
+  const r = await exec("sh", ["-c", 'for d in "$HOME"/Projects/*/; do [ -d "$d.git" ] || continue; u=$(git -C "$d" config --get remote.origin.url 2>/dev/null) || continue; printf "%s\\t%s\\n" "${d%/}" "$u"; done'],
+    { ...(on ? { on } : {}), timeout: 20000 }).catch(() => null);
+  if (!r || r.code !== 0) return [];
+  return r.stdout.split("\n").map((l) => l.split("\t")).filter(([d, u]) => d && BITROPY.test(u ?? ""))
+    .map(([main]) => ({ main, name: main.split("/").pop(), on, bitropy: true }));
+}
+
 // ---------- config ----------
 
 const lenientJson = (text) => JSON.parse(text.replace(/^\s*\/\/.*$/gm, "").replace(/,(\s*[}\]])/g, "$1"));
@@ -150,6 +159,7 @@ const focusFolder = () => {
 export default class Linear extends View {
   init(_props, cx) {
     this.issues = []; this.open = null; this.details = {}; this.busy = {}; this.errors = {};
+    this.repos = []; this.picked = {}; // issue id -> repo name chosen in its row
     this.mine = JSON.parse(localStorage.getItem("mine") ?? "null");
     this.filter = "";
     this.input = InputState.new({ placeholder: "Filter issues" });
@@ -166,6 +176,8 @@ export default class Linear extends View {
     cx.spawn(async (cx) => {
       try {
         this.config = await loadConfig();
+        const on = this.heavy();
+        if (this.reposOn !== (on ?? "")) { this.repos = await bitropyRepos(on); this.reposOn = on ?? ""; }
         if (this.mine === null) this.mine = Boolean(this.config.assignedToMe);
         const data = await gql(this.config, issuesQuery(this.config, this.mine), { first: this.config.issueLimit });
         this.issues = data.issues.nodes.sort((a, b) =>
@@ -197,9 +209,28 @@ export default class Linear extends View {
     return name && machines().some((m) => m.name === name) ? name : null;
   }
 
-  // The checkout to branch from on machine `on`: repos[team] (paths on the agent machine),
-  // else the focused repo when it's on that machine, else ~/Projects/<same name> there.
+  // The repo an issue goes to, by name: the one picked in its row, else the title's
+  // "repo:" prefix ("portal: …"), else the focused repo when it's a Bitropy one.
+  target(issue) {
+    const names = new Set(this.repos.map((r) => r.name));
+    if (this.picked[issue.id]) return this.picked[issue.id];
+    const prefix = /^\s*([\w.-]+)\s*:/.exec(issue.title)?.[1]?.toLowerCase();
+    if (prefix && names.has(prefix)) return prefix;
+    if (this.repo?.bitropy) return this.repo.name;
+    return null;
+  }
+
+  // The checkout to branch from on machine `on`: the issue's target repo (~/Projects/<name>
+  // there), else repos[team] (paths on the agent machine), else the focused repo when it's
+  // on that machine, else ~/Projects/<same name> there.
   async repoFor(issue, on) {
+    const name = this.target(issue);
+    if (name) {
+      if (this.repo?.name === name && this.repo.on === on) return this.repo;
+      const r = await repoOf(`${await homeOn(on)}/Projects/${name}`, on);
+      if (r) return r;
+      throw new Error(`No ~/Projects/${name} on ${on ?? "this computer"}.`);
+    }
     const mapped = this.config.repos?.[issue.team.key];
     if (mapped && on === this.heavy()) {
       const r = await repoOf(await expand(mapped, on), on);
@@ -268,6 +299,7 @@ export default class Linear extends View {
         }
         const repo = await this.repoFor(issue, on);
         if (opts.skill && !repo.bitropy) throw new Error(`${repo.name} is not a Bitropy repo; team-eng skills run only there.`);
+        if (!opts.here && !this.target(issue) && !this.config.repos?.[issue.team.key] && !this.repo) throw new Error("Pick a repo above first.");
         let path = await worktreeFor(repo.main, branch, on);
         if (!path) {
           const root = await expand(this.config.worktreeRoot ?? "~/.herdr/worktrees", on);
@@ -327,7 +359,17 @@ export default class Linear extends View {
         .when(Boolean(this.heavy()), (el) => el.child(this.button(`here-${issue.id}`, "Here (light)", t, false,
           (cx) => this.start(issue, { agent: true, here: true }, cx))))
         .child(this.button(`url-${issue.id}`, "Open in Linear", t, false, () => exec("open", [issue.url]))))
-      .when(Boolean(this.repo?.bitropy), (el) => el.child(h_flex().gap(6).flex_wrap().items_center()
+      .when(!link && this.repos.length > 0, (el) => el.child(h_flex().gap(4).flex_wrap().items_center()
+        .child(div().text_size(10.5).text_color(t.dim).pr(2).child("repo"))
+        .children(this.repos.map((r) => {
+          const on = this.target(issue) === r.name;
+          return div().id(`repo-${issue.id}-${r.name}`).px(6).h(20).flex().items_center().rounded(5).text_size(11).cursor_pointer()
+            .border_1().border_color(on ? t.accent : t.border).text_color(on ? t.foreground : t.muted).hover((s) => s.bg(t.hover))
+            .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
+            .on_click((_e, cx) => { cx.stop_propagation(); this.picked[issue.id] = r.name; cx.notify(); })
+            .child(r.name);
+        }))))
+      .when(Boolean(link ? this.repo?.bitropy || this.target(issue) : this.target(issue)), (el) => el.child(h_flex().gap(6).flex_wrap().items_center()
         .child(div().text_size(10.5).text_color(t.dim).child("team-eng"))
         .children(SKILLS.map((k) => this.button(`${k.id}-${issue.id}`, k.label, t, false,
           (cx) => this.start(issue, { agent: true, skill: k }, cx))))))
@@ -401,7 +443,7 @@ export default class Linear extends View {
       .child(h_flex().flex_none().h(28).px(12).gap(6).items_center().border_t(1).border_color(t.border).text_size(10.5).text_color(t.dim)
         .child(div().flex_1().min_w(0).truncate().child(this.repo
           ? `New worktrees from ${this.repo.name}${this.heavy() ? ` on ${this.heavy()}` : ""}${this.repo.bitropy ? " · Bitropy" : ""}`
-          : "Focus a repo's terminal to start issues there"))
+          : "Pick a repo in an issue, or focus a repo's terminal"))
         .when(Boolean(this.at), (e) => e.child(div().flex_none().child(new Date(this.at).toTimeString().slice(0, 5)))));
   }
 }
