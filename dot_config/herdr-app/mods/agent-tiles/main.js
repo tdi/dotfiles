@@ -3,6 +3,8 @@
 // blocked (solid red, pulsing ring), then done (solid green), each with how long it has
 // waited; then the rest by most recent activity. Agents on another machine get its
 // initial in the top-left corner. Hover for the name, click to go there.
+// Keys: ⌥1–⌥9 (keys.json "alt-1": "agent-tiles.1") go to the tile with that number,
+// shown in its bottom-right corner. The numbers follow the order, so they move with it.
 //
 // Coming back: when the window becomes active again after AWAY_MS, a "While you were
 // away" dialog lists what finished or got blocked meanwhile. The Dock badge shows how
@@ -10,7 +12,7 @@
 
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { agents, theme, run, layout, setAgentOrder, shared, setShared, window, setBadge, openOverlay, closeOverlay, props } from "herdr";
+import { agents, theme, run, layout, setAgentOrder, shared, setShared, window, setBadge, openOverlay, closeOverlay, props, nextCommand } from "herdr";
 
 const AWAY_MS = 2 * 60_000;
 const NEEDS = { blocked: 2, done: 1 };
@@ -61,6 +63,17 @@ export default class AgentTiles extends View {
     this.active = window()?.active ?? true;
     this.leftAt = this.active ? null : Date.now();
     cx.timer.every(2000, (cx) => this.watchWindow(cx));
+    this.list = [];
+    // "agent-tiles.3" from keys.json: go to the third tile.
+    cx.spawn(async () => {
+      for (;;) {
+        const n = Number(await nextCommand());
+        const a = this.list[n - 1];
+        if (!a) continue;
+        if (a.pane) run("pane.focus", { pane: a.pane });
+        else run("agent.focus", { terminal: a.address });
+      }
+    });
   }
 
   // Remember when each agent changed status; the first sighting has no time.
@@ -129,6 +142,7 @@ export default class AgentTiles extends View {
     const list = [...all].sort((x, y) => (NEEDS[y.status] ?? 0) - (NEEDS[x.status] ?? 0)
       || (NEEDS[x.status] ? waited(x) - waited(y) : 0) || y.seq - x.seq);
     setAgentOrder(list.map((a) => a.address));
+    this.list = list;
     const needs = list.filter((a) => NEEDS[a.status]);
     const badge = needs.length ? String(needs.length) : null;
     if (badge !== this.badge) { this.badge = badge; setBadge(badge); }
@@ -147,7 +161,7 @@ export default class AgentTiles extends View {
       ...(counts.working ? [div().text_color(t.working).child(`${counts.working} working`)] : []),
     ];
 
-    const tile = (a) => {
+    const tile = (a, i) => {
       const color = t[a.status] ?? t.unknown ?? t.dim;
       const idle = a.status === "idle" || !RANK[a.status];
       const need = Boolean(NEEDS[a.status]);
@@ -157,7 +171,7 @@ export default class AgentTiles extends View {
       const many = perSpace.get(a.space) > 1;
       // An agent on another machine has an address like "mini/t7": mark the tile with it.
       const machine = a.address.includes("/") ? a.address.split("/")[0] : null;
-      const tip = [a.space_name, machine ? `on ${machine}` : null, many ? `tab ${a.tab_name || a.tab_index + 1}` : null,
+      const tip = [i < 9 ? `⌥${i + 1}` : null, a.space_name, machine ? `on ${machine}` : null, many ? `tab ${a.tab_name || a.tab_index + 1}` : null,
         need && at ? `${a.status === "blocked" ? "waiting" : "done"} ${ago(now - at)}` : a.status, a.title]
         .filter(Boolean)
         .join(" · ");
@@ -199,8 +213,9 @@ export default class AgentTiles extends View {
         .when(Boolean(machine), (el) =>
           el.child(div().absolute().top(1).left(3).text_size(8.5).font_semibold().text_color(t.accent).child(machine.slice(0, 1).toUpperCase())),
         )
-        .when(many, (el) =>
-          el.child(div().absolute().bottom(1).right(4).text_size(9).text_color(need ? t.background : t.dim).child(String(a.tab_index + 1))),
+        // The ⌥ number; the tab of a space with several agents is in the tooltip.
+        .when(i < 9, (el) =>
+          el.child(div().absolute().bottom(1).right(4).text_size(9).text_color(need ? t.background : t.dim).child(String(i + 1))),
         );
     };
 
@@ -209,7 +224,7 @@ export default class AgentTiles extends View {
       .gap(GAP + 2)
       .p(4)
       .when(narrow(), (el) => el.justify_center())
-      .children(list.map(tile));
+      .children(list.map((a, i) => tile(a, i)));
 
     return v_flex()
       .size_full()

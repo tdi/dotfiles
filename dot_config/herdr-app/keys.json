@@ -62,7 +62,16 @@
     "cmd-alt-l": "my-tabs.linear",
     "cmd-alt-c": "my-tabs.ci",
     "cmd-alt-a": "layout.toggle:agents",
-    "cmd-alt-p": "my-tabs.prs"
+    "cmd-alt-p": "my-tabs.prs",
+    "alt-1": "agent-tiles.1",
+    "alt-2": "agent-tiles.2",
+    "alt-3": "agent-tiles.3",
+    "alt-4": "agent-tiles.4",
+    "alt-5": "agent-tiles.5",
+    "alt-6": "agent-tiles.6",
+    "alt-7": "agent-tiles.7",
+    "alt-8": "agent-tiles.8",
+    "alt-9": "agent-tiles.9"
   },
   "terminal": {
     "cmd-f": "terminal.search",
