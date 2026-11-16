@@ -9,8 +9,8 @@
 // agentMachine: the machine heavy work goes to (worktree + Claude), e.g. "mini". Viewed
 // from another computer connected to it, Start makes the worktree and space there;
 // "Here (light)" starts on the computer you're at. Repos given in `repos` are paths on
-// agentMachine. The team-eng skill buttons show only for repos whose origin is the
-// Bitropy GitHub org.
+// agentMachine. An expanded issue offers the Bitropy repos in ~/Projects to start in
+// (guessed from a "repo:" title prefix).
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, Scrollbar, TextView } from "gpui-base";
@@ -22,11 +22,6 @@ const STATE_ORDER = { started: 0, unstarted: 1, triage: 2, backlog: 3 };
 const slug = (branch) => branch.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
 const tilde = (p) => (p && p.startsWith(home()) ? `~${p.slice(home().length)}` : p);
 const BITROPY = /github\.com[:/]bitropy\//i;
-const SKILLS = [
-  { id: "spec-draft", label: "Spec draft", task: (i) => `/team-eng:spec-draft ${i.identifier}` },
-  { id: "spec-loop", label: "Spec loop", task: (i) => `/team-eng:spec-loop ${i.identifier}` },
-  { id: "spec-implement", label: "Implement spec", task: (i) => `/team-eng:spec-implement docs/specs/${i.identifier}.md` },
-];
 
 // $HOME on a machine (null = here), asked once.
 const homes = new Map();
@@ -303,7 +298,7 @@ export default class Linear extends View {
     cx.notify();
   }
 
-  // opts: { agent, here, skill }. Heavy by default: on the agent machine.
+  // opts: { agent, here }. Heavy by default: on the agent machine.
   start(issue, opts, cx) {
     if (this.busy[issue.id]) return;
     const on = opts.here ? null : this.heavy();
@@ -320,17 +315,16 @@ export default class Linear extends View {
           const agents = await knownAgents(on ? { on } : undefined).catch(() => []);
           argv = agents.find((a) => a.key === "claude")?.run ?? ["claude"];
           const d = this.details[issue.id];
-          task = opts.skill ? opts.skill.task(issue) : [`Work on Linear issue ${issue.identifier}: ${issue.title}`, issue.url,
+          task = [`Work on Linear issue ${issue.identifier}: ${issue.title}`, issue.url,
             d?.description ? `\n${d.description.slice(0, 4000)}` : ""].filter(Boolean).join("\n");
         }
         // Already worked on in a space: a new tab there (its folder), or just go to it.
         if (link) {
           if (!opts.agent) { run("space.select", { id: link.space.id }); run("tab.select", { id: link.tab.id }); return; }
-          run("tab.new", { space: link.space.id, name: opts.skill ? opts.skill.label : issue.identifier, argv, task });
+          run("tab.new", { space: link.space.id, name: issue.identifier, argv, task });
           return;
         }
         const repo = await this.repoFor(issue, on);
-        if (opts.skill && !repo.bitropy) throw new Error(`${repo.name} is not a Bitropy repo; team-eng skills run only there.`);
         if (!opts.here && !this.target(issue) && !this.config.repos?.[issue.team.key] && !this.repo) throw new Error("Pick a repo above first.");
         let path = await worktreeFor(repo.main, branch, on);
         if (!path) {
@@ -401,10 +395,7 @@ export default class Linear extends View {
             .on_click((_e, cx) => { cx.stop_propagation(); this.picked[issue.id] = r.name; cx.notify(); })
             .child(r.name);
         }))))
-      .when(Boolean(link ? this.repo?.bitropy || this.target(issue) : this.target(issue)), (el) => el.child(h_flex().gap(6).flex_wrap().items_center()
-        .child(div().text_size(10.5).text_color(t.dim).child("team-eng"))
-        .children(SKILLS.map((k) => this.button(`${k.id}-${issue.id}`, k.label, t, false,
-          (cx) => this.start(issue, { agent: true, skill: k }, cx))))))
+
       .when(Boolean(this.busy[issue.id]), (el) => el.child(div().text_size(11).text_color(t.working).child(this.busy[issue.id])))
       .when(Boolean(this.errors[issue.id]), (el) => el.child(div().text_size(11).text_color(t.blocked).child(this.errors[issue.id])))
       .child(div().text_size(12).text_color(t.foreground).child(TextView.markdown(`md-${issue.id}`, body).selectable(true)))

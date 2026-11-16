@@ -1,0 +1,22 @@
+# Worktree setup: steps run in each NEW git worktree when its space first shows up
+# (any way it was made: Linear, the PRs panel, Herdr's New worktree). Read by my-spaces.
+# A worktree counts as new for 10 minutes after `git worktree add`; once its steps
+# succeed, a marker in its git dir keeps them from running again.
+#
+# Env for steps: HERDR_MAIN_REPO (main checkout), HERDR_WORKTREE (the new worktree,
+# also the cwd), HERDR_BRANCH. `path` in [[project]] is a main repo path (~ allowed);
+# the first match wins, else [default].
+
+[default]
+steps = [
+  'cp "$HERDR_MAIN_REPO"/.env* . 2>/dev/null || true',
+  "mise trust",
+]
+
+# [[project]]
+# path = "~/Projects/portal"
+# steps = [
+#   'cp "$HERDR_MAIN_REPO"/.env* . 2>/dev/null || true',
+#   "mise trust",
+#   "pnpm install",
+# ]

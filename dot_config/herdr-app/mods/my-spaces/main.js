@@ -7,10 +7,15 @@
 // repo's origin (COMPANIES below; anything else is Private), and the real space order
 // follows the groups so ctrl+1..9 match what's shown. A worktree space whose branch's
 // PR is merged (gh) shows "merged · remove", which opens the worktree remove dialog.
+// Running dev stacks (docker compose projects, by their working dir, and portal's Tilt
+// slots) show as a chip on their space's row; click for a menu that stops them. Stacks
+// whose folder has no space are listed at the bottom, so none keeps running forgotten.
+// New worktrees get their setup steps from ~/.config/herdr-app/worktree-setup.toml
+// (copy .env, mise trust, ...), run once, quietly, with a notification when done.
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle } from "gpui-base";
-import { spaces, machines, panes, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window, layout } from "herdr";
+import { spaces, machines, panes, run, openOverlay, closeOverlay, props, notify, appHome, readTextFile, exec, hc, theme, shared, setShared, watchFolder, window, layout } from "herdr";
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -45,6 +50,80 @@ const PRIVATE = { name: "Private", color: "ansi5" };
 const companyOf = (url) => COMPANIES.find((c) => c.match.test(url ?? "")) ?? PRIVATE;
 const companyRank = (name) => { const i = COMPANIES.findIndex((c) => c.name === name); return i < 0 ? COMPANIES.length : i; };
 const MERGED_EVERY = 5 * 60000;
+
+// ---------- dev stacks ----------
+const DEV_EVERY = 30000;
+const TILT_PORTS = Array.from({ length: 10 }, (_, i) => 10350 + i);
+// Tilt's /api/view is over 1 MB (logs): cut down to [name, runtime, update] on the machine.
+const SLIM = `slim() { if command -v jq >/dev/null 2>&1; then jq -c '[.uiResources[]? | [.metadata.name, .status.runtimeStatus, .status.updateStatus]]' 2>/dev/null; else python3 -c 'import json,sys
+try: print(json.dumps([[r["metadata"]["name"], r.get("status",{}).get("runtimeStatus"), r.get("status",{}).get("updateStatus")] for r in json.load(sys.stdin).get("uiResources",[])]))
+except Exception: pass'; fi; }`;
+const DEV_PROBE = [
+  SLIM,
+  `printf "@@docker\\n"; docker ps --format '{{.Label "com.docker.compose.project"}}|{{.Label "com.docker.compose.project.working_dir"}}|{{.Names}}|{{.RunningFor}}' 2>/dev/null`,
+  'printf "@@slots\\n"; cat "$HOME/.cache/portal-tilt/slots" 2>/dev/null',
+  ...TILT_PORTS.map((p) => `printf "@@tilt ${p}\\n"; curl -s -m 2 http://127.0.0.1:${p}/api/view 2>/dev/null | slim; echo`),
+].join("; ");
+
+// { stacks: [{ project, dir, names, since }], tilts: [{ port, slot, dir, errors, pending, total }] }
+function parseDev(out) {
+  const parts = {};
+  for (const chunk of out.split(/^@@/m).slice(1)) {
+    const nl = chunk.indexOf("\n");
+    parts[chunk.slice(0, nl)] = chunk.slice(nl + 1).trim();
+  }
+  const byProject = new Map();
+  for (const line of (parts.docker || "").split("\n")) {
+    const [project, dir, name, since] = line.split("|");
+    if (!project || !dir) continue;
+    const s = byProject.get(project) ?? { project, dir, names: [], since };
+    s.names.push(name);
+    byProject.set(project, s);
+  }
+  const slots = {};
+  for (const l of (parts.slots || "").split("\n")) { const m = /^(\d)\s+(.+)$/.exec(l.trim()); if (m) slots[m[1]] = m[2]; }
+  const tilts = [];
+  for (const port of TILT_PORTS) {
+    try {
+      const rs = JSON.parse(parts[`tilt ${port}`] || "null");
+      if (!Array.isArray(rs) || !rs.length) continue;
+      const busy = (v) => v === "pending" || v === "in_progress";
+      const slot = String(port - 10350);
+      tilts.push({ port, slot, dir: slots[slot] ?? null,
+        errors: rs.filter(([, r, u]) => r === "error" || u === "error").map(([n]) => n),
+        pending: rs.filter(([, r, u]) => busy(r) || busy(u)).length, total: rs.length });
+    } catch {}
+  }
+  return { stacks: [...byProject.values()], tilts };
+}
+// ---------- worktree setup ----------
+const SETUP_FRESH_S = 600; // a worktree is new for 10 minutes after `git worktree add`
+// The few TOML shapes worktree-setup.toml uses: [default] / [[project]] with path and steps.
+function parseSetup(text) {
+  const conf = { def: null, projects: [] };
+  let cur = null;
+  const lines = text.split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].replace(/^\s+/, "");
+    if (!line || line.startsWith("#")) continue;
+    if (line.startsWith("[[project]]")) { cur = { path: null, steps: [] }; conf.projects.push(cur); continue; }
+    if (line.startsWith("[default]")) { cur = { steps: [] }; conf.def = cur; continue; }
+    const m = /^(\w+)\s*=\s*(.*)$/.exec(line);
+    if (!m || !cur) continue;
+    let value = m[2];
+    if (value.startsWith("[")) while (!/\]\s*(#.*)?$/.test(value) && i + 1 < lines.length) value += "\n" + lines[++i];
+    const strings = [...value.matchAll(/'([^']*)'|"((?:[^"\\]|\\.)*)"/g)].map((x) => x[1] ?? x[2].replace(/\\(.)/g, "$1"));
+    if (m[1] === "steps") cur.steps = strings;
+    else if (m[1] === "path") cur.path = strings[0] ?? null;
+  }
+  return conf;
+}
+async function setupConfig() {
+  const text = await readTextFile(`${appHome()}/worktree-setup.toml`).catch(() => null);
+  return text ? parseSetup(text) : null;
+}
+
+const shq = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`;
 const base = (path) => path.replace(/\/+$/, "").split("/").pop();
 // Changes made outside Herdr (an editor's save, a commit in another app): looked
 // for this often, in repos the list shows, while the window is in front.
@@ -77,6 +156,10 @@ export function tone(t, status) {
 
 export default class Spaces extends View {
   init(_props, cx) {
+    this.dev = {}; // machine ("" = here) -> parseDev()
+    if (props()?.devMenu) { this.confirm = null; this.probeDev([props().devMenu.on], cx); return; }
+    cx.timer.after(1500, (cx) => this.probeDev(null, cx));
+    cx.timer.every(DEV_EVERY, (cx) => this.probeDev(null, cx));
     this.merged = {}; this.mergedAt = {};
     try { this.foldedCo = new Set(JSON.parse(localStorage.getItem("companies.folded") ?? "[]")); } catch { this.foldedCo = new Set(); }
     cx.timer.every(5000, (cx) => this.checkMerged(cx));
@@ -270,10 +353,11 @@ export default class Spaces extends View {
       const origin = await exec("git", ["config", "--get", "remote.origin.url"], { cwd, on }).catch(() => null);
       const name = repo.endsWith("/.git") ? base(repo.slice(0, -5)) : base(repo).replace(/\.git$/, "");
       const [ahead, behind] = counts.code === 0 ? counts.stdout.trim().split(/\s+/).map(Number) : [0, 0];
-      const info = { name, branch: branch.code === 0 ? branch.stdout.trim().replace(/^refs\/heads\//, "") : "(detached)", ahead, behind, repo: JSON.stringify([on, repo]), linked: repo !== `${top}/.git`,
+      const info = { top, name, branch: branch.code === 0 ? branch.stdout.trim().replace(/^refs\/heads\//, "") : "(detached)", ahead, behind, repo: JSON.stringify([on, repo]), linked: repo !== `${top}/.git`,
         origin: origin?.code === 0 ? origin.stdout.trim() : "", company: companyOf(origin?.code === 0 ? origin.stdout.trim() : "").name };
       this.git[key] = info;
       if (!on) this.watch(repo, cx);
+      if (info.linked) this.maybeSetup(key, info, on, repo, cx);
     } catch {
       // Couldn't ask (the machine is away): keep what it showed, look again later.
       this.git[key] ??= null;
@@ -362,6 +446,7 @@ export default class Spaces extends View {
   // The rows, under a header per machine once one isn't this computer.
   grouped(t, collapsed) {
     const rows = this.ordered();
+    this.lastRows = rows;
     const draw = (r) => (collapsed ? this.compact(r, t) : this.row(r, t));
     // Where the active space's row lands among the children this returns: the list scrolls by its direct
     // children, and machine headers, login notes and loading rows count too.
@@ -534,6 +619,145 @@ export default class Spaces extends View {
     });
   }
 
+  // A worktree made in the last 10 minutes without the done-marker: run its setup steps.
+  maybeSetup(key, info, on, repo, cx) {
+    this.setupTried ??= new Set();
+    if (this.setupTried.has(info.top)) return;
+    this.setupTried.add(info.top);
+    cx.spawn(async (cx) => {
+      const opts = { cwd: info.top, ...(on ? { on } : {}) };
+      const probe = await exec("sh", ["-c", 'd=$(git rev-parse --absolute-git-dir) || exit 1; [ -e "$d/herdr-setup-done" ] && { echo done; exit 0; }; b=$(stat -f %B "$d" 2>/dev/null || stat -c %W "$d"); echo "$d $(( $(date +%s) - b ))"'], opts).catch(() => null);
+      const out = probe?.code === 0 ? probe.stdout.trim() : "done";
+      const [gitDir, age] = out.split(" ");
+      if (out === "done" || !(Number(age) >= 0 && Number(age) < SETUP_FRESH_S)) return;
+      const conf = await setupConfig();
+      if (!conf) return;
+      const main = repo.endsWith("/.git") ? repo.slice(0, -5) : repo;
+      const home = (await exec("sh", ["-c", 'printf %s "$HOME"'], on ? { on } : {}).catch(() => null))?.stdout ?? "";
+      const norm = (p) => (p ?? "").replace(/^~(?=\/|$)/, home).replace(/\/+$/, "");
+      const steps = (conf.projects.find((p) => norm(p.path) === main) ?? conf.def)?.steps ?? [];
+      if (!steps.length) return;
+      const env = `export HERDR_MAIN_REPO=${shq(main)} HERDR_WORKTREE=${shq(info.top)} HERDR_BRANCH=${shq(info.branch)}`;
+      const script = `${env}; set -e; ${steps.join("\n")}\ntouch ${shq(gitDir + "/herdr-setup-done")}`;
+      const name = base(info.top);
+      const r = await exec("sh", ["-lc", script], { ...opts, timeout: 600000 }).catch((e) => ({ code: 1, stderr: String(e) }));
+      notify(r.code === 0
+        ? { title: "Worktree set up", body: `${name}: ${steps.length} step${steps.length > 1 ? "s" : ""} done`, level: "info" }
+        : { title: "Worktree setup failed", body: `${name}: ${`${r.stderr || r.stdout || ""}`.trim().split("\n").slice(-3).join("\n")}`, level: "error" });
+    });
+  }
+
+  // Dev stacks on each machine with spaces (or just `only`), every 30 s.
+  probeDev(only, cx) {
+    if (this.devBusy) return;
+    const list = only ?? [...new Set([null, ...spaces().map((s) => s.machine ?? null)])];
+    this.devBusy = true;
+    cx.spawn(async (cx) => {
+      for (const on of list) {
+        try {
+          const r = await exec("sh", ["-lc", DEV_PROBE], { ...(on ? { on } : {}), timeout: 30000 });
+          this.dev[on ?? ""] = parseDev(r.stdout ?? "");
+        } catch { /* the machine is away: keep what it showed */ }
+      }
+      this.devBusy = false;
+      cx.notify();
+    });
+  }
+
+  devAt(on, dir) {
+    const d = this.dev[on ?? ""];
+    if (!d || !dir) return { stacks: [], tilts: [] };
+    return { stacks: d.stacks.filter((s) => s.dir === dir), tilts: d.tilts.filter((x) => x.dir === dir) };
+  }
+
+  openDevMenu(on, dir, name) {
+    openOverlay({ mod: "my-spaces", kind: "popup", width: 340, height: 260, props: { devMenu: { on, dir, name } } });
+  }
+
+  devChip(w, g, t) {
+    const { stacks, tilts } = this.devAt(w.machine, g?.top);
+    if (!stacks.length && !tilts.length) return null;
+    const bad = tilts.some((x) => x.errors.length);
+    const tip = [...tilts.map((x) => `Tilt slot ${x.slot}${x.errors.length ? `: ${x.errors.length} error` : ": ok"}`),
+      ...stacks.map((s) => `docker ${s.project} (${s.names.length}) · up ${s.since}`), "Click to stop"].join("\n");
+    return div().id(`dev-${w.id}`).flex_none().px(5).h(18).flex().items_center().gap(4).rounded(4)
+      .text_size(10.5).text_color(bad ? t.blocked : t.ansi2).border_1().border_color(bad ? t.blocked : t.border)
+      .cursor_pointer().hover((s) => s.bg(t.hover)).tooltip(tip)
+      .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
+      .on_mouse_up("left", (_e, cx) => cx.stop_propagation())
+      .on_click((_e, cx) => { cx.stop_propagation(); this.openDevMenu(w.machine ?? null, g.top, w.name); })
+      .child(div().size(6).rounded(3).bg(bad ? t.blocked : t.ansi2))
+      .child(tilts.length ? "tilt" : "docker");
+  }
+
+  // Stacks whose folder has no space shown: listed under the spaces.
+  orphans(rows, t) {
+    const tops = new Set(rows.map((r) => `${r.w.machine ?? ""}|${r.g?.top}`));
+    const out = [];
+    for (const [on, d] of Object.entries(this.dev)) {
+      const dirs = new Map();
+      for (const s of d.stacks) if (!tops.has(`${on}|${s.dir}`)) (dirs.get(s.dir) ?? dirs.set(s.dir, []).get(s.dir)).push(`docker ${s.project} · up ${s.since}`);
+      for (const x of d.tilts) if (x.dir && !tops.has(`${on}|${x.dir}`)) (dirs.get(x.dir) ?? dirs.set(x.dir, []).get(x.dir)).unshift(`Tilt slot ${x.slot}`);
+      for (const [dir, what] of dirs) out.push({ on: on || null, dir, what });
+    }
+    if (!out.length) return [];
+    return [
+      h_flex().id("orphans-head").h(24).mt(8).px(8).gap(7).flex_none().items_center().text_size(10.5).font_medium().text_color(t.dim)
+        .child(div().size(7).rounded(4).flex_none().bg(t.working)).child(div().flex_1().child("RUNNING WITHOUT A SPACE")).child(String(out.length)),
+      ...out.map((o) => h_flex().id(`orphan-${o.on ?? ""}-${o.dir}`).h(26).px(8).gap(7).flex_none().items_center().rounded(7)
+        .text_size(12).text_color(t.muted).cursor_pointer().hover((s) => s.bg(t.hover)).tooltip(`${o.dir}${o.on ? ` on ${o.on}` : ""}\n${o.what.join("\n")}\nClick to stop`)
+        .on_click(() => this.openDevMenu(o.on, o.dir, base(o.dir)))
+        .child(div().flex_1().min_w(0).truncate().child(base(o.dir)))
+        .child(div().flex_none().text_size(10.5).text_color(t.dim).child(o.what.length > 1 ? `${o.what.length} running` : o.what[0].split(" · ")[0]))),
+    ];
+  }
+
+  // The popup copy: what runs in one folder, each with its stop button (click twice).
+  devMenu(t) {
+    const { on, dir, name } = props().devMenu;
+    const { stacks, tilts } = this.devAt(on, dir);
+    const act = (id, label, cmd, done) => {
+      const armed = this.confirm === id;
+      return div().id(id).flex_none().px(8).h(22).flex().items_center().rounded(5).text_size(11).cursor_pointer()
+        .bg(armed ? t.blocked : t.raised).text_color(armed ? t.background : t.foreground).border_1().border_color(armed ? t.blocked : t.border)
+        .on_click((_e, cx) => {
+          if (!armed) { this.confirm = id; cx.notify(); return; }
+          this.confirm = null; this.running = label; cx.notify();
+          cx.spawn(async (cx) => {
+            // The folder may be gone (a removed worktree): run from home then.
+            const script = `cd ${shq(dir)} 2>/dev/null || cd "$HOME"; ${cmd}`;
+            const r = await exec("sh", ["-lc", script], { ...(on ? { on } : {}), timeout: 180000 }).catch((e) => ({ code: 1, stderr: String(e) }));
+            const tail = `${r.stderr || r.stdout || ""}`.trim().split("\n").slice(-3).join("\n");
+            notify({ title: r.code === 0 ? done : `${label} failed`, body: r.code === 0 ? name : tail, level: r.code === 0 ? "info" : "error" });
+            this.running = null;
+            this.probeDev([on], cx);
+          });
+        })
+        .child(armed ? `Confirm ${label.toLowerCase()}` : label);
+    };
+    const row = (id, title, detail, color, actions) => h_flex().id(id).gap(8).items_center().py(4)
+      .child(div().size(7).rounded(4).flex_none().bg(color))
+      .child(v_flex().flex_1().min_w(0).child(div().truncate().child(title)).child(div().text_size(10.5).text_color(t.dim).truncate().child(detail)))
+      .children(actions);
+    return v_flex().size_full().p(12).gap(6).bg(t.popover).text_size(12.5).text_color(t.foreground)
+      .child(div().font_semibold().truncate().child(name))
+      .child(div().text_size(10.5).text_color(t.dim).truncate().child(`${dir}${on ? ` · on ${on}` : ""}`))
+      .children(tilts.map((x) => row(`tilt-${x.port}`, `Tilt slot ${x.slot}`, x.errors.length ? `errors: ${x.errors.join(", ")}` : `${x.total} resources ok`, x.errors.length ? t.blocked : t.ansi2, [
+        ...(on ? [] : [div().id(`ui-${x.port}`).px(8).h(22).flex().items_center().rounded(5).text_size(11).cursor_pointer().bg(t.raised).border_1().border_color(t.border)
+          .on_click(() => exec("open", [`http://localhost:${x.port}`])).child("Open")]),
+        // Stops the `tilt up` process on that port, then tears its resources down.
+        act(`stop-${x.port}`, "Stop", `pid=$(lsof -ti tcp:${x.port} -sTCP:LISTEN); [ -n "$pid" ] && kill $pid; sleep 1; if [ -f Tiltfile ]; then if command -v mise >/dev/null 2>&1; then TILT_PORT=${x.port} mise exec -- tilt down; else TILT_PORT=${x.port} tilt down; fi; fi`, "Tilt stopped"),
+      ])))
+      .children(stacks.map((s) => row(`stack-${s.project}`, `docker ${s.project}`, `${s.names.join(", ")} · up ${s.since}`, t.ansi4, [
+        // `docker compose` (plugin) or the standalone `docker-compose`; with only the project
+        // name, no compose file is needed.
+        act(`down-${s.project}`, "Down", `if docker compose version >/dev/null 2>&1; then docker compose -p ${shq(s.project)} down; else docker-compose -p ${shq(s.project)} down; fi`, "Docker stack down"),
+      ])))
+      .when(!stacks.length && !tilts.length, (el) => el.child(div().text_color(t.dim).child(this.dev[on ?? ""] ? "Nothing running here anymore." : "Looking…")))
+      .when(Boolean(this.running), (el) => el.child(div().text_size(11).text_color(t.working).child(`${this.running}…`)))
+      .child(div().text_size(10.5).text_color(t.dim).child("Click a button twice: once to arm, once to run. Docker volumes are kept."));
+  }
+
   mergedChip(w, t) {
     const k = where(w, panes()), m = this.merged[k];
     if (!m || this.git[k]?.branch !== m.branch) return null;
@@ -603,7 +827,8 @@ export default class Spaces extends View {
           .when(Boolean(tree), el => el.pl(22).child(svg("mods/workspace-chrome/branch.svg").size(13).flex_none().text_color(t.dim)))
           .when(!tree, el => el.child(h_flex().size(18).flex_none().rounded(5).bg(fill).items_center().justify_center().text_size(10.5).font_bold().text_color("#ffffff").child([...w.name][0]?.toUpperCase() ?? "?")))
           .child(div().flex_initial().min_w(SIDE_MIN).truncate().text_color(t.foreground).child(w.name))
-          .child(this.mergedChip(w, t) ?? (g ? this.gitTail(g, tree, w.name, t) : div().flex_1())),
+          .child(this.mergedChip(w, t) ?? (g ? this.gitTail(g, tree, w.name, t) : div().flex_1()))
+          .when(Boolean(this.devChip(w, g, t)), (el) => el.child(this.devChip(w, g, t))),
       );
   }
 
@@ -625,6 +850,7 @@ export default class Spaces extends View {
 
   render() {
     const t = theme();
+    if (props()?.devMenu) return this.devMenu(t);
     const collapsed = narrow();
     const palette = ["ansi6", "ansi3", "ansi4", "ansi5", "ansi2", "ansi1"];
     const sp = spaces();
@@ -639,6 +865,7 @@ export default class Spaces extends View {
     }
     if (changed) setShared("space.colors", kept);
     const list = this.grouped(t, collapsed);
+    if (!collapsed) list.push(...this.orphans(this.lastRows ?? [], t));
     // Bring the active space into view when it, or its place in the list, changes; a row already in view stays put.
     const active = sp.find(p => p.active)?.id;
     if (active !== this.revealed || this.activeAt !== this.revealedAt) {

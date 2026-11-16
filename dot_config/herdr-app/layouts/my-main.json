@@ -154,6 +154,13 @@
                       "content": {
                         "mod": "ci"
                       }
+                    },
+                    {
+                      "id": "prs",
+                      "type": "block",
+                      "content": {
+                        "mod": "prs"
+                      }
                     }
                   ],
                   "active": "files"

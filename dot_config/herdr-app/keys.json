@@ -61,7 +61,8 @@
   "layout:my-main": {
     "cmd-alt-l": "my-tabs.linear",
     "cmd-alt-c": "my-tabs.ci",
-    "cmd-alt-a": "layout.toggle:agents"
+    "cmd-alt-a": "layout.toggle:agents",
+    "cmd-alt-p": "my-tabs.prs"
   },
   "terminal": {
     "cmd-f": "terminal.search",

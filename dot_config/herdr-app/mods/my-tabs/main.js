@@ -99,7 +99,7 @@ export default class Tabs extends View {
       : 10;
     const panel = find(root, "panel"), body = find(root, "panel-body");
     // Always all four, whatever the welcome screen saved in "workspace.panels" on this machine.
-    const enabled = ["files", "changes", "linear", "ci"];
+    const enabled = ["files", "changes", "linear", "prs", "ci"];
     this.syncPanel(space, panel, body, enabled);
     const panelButton = (id, label, icon) => {
       const on = panel && !panel.hidden && body?.active === id;
@@ -121,6 +121,7 @@ export default class Tabs extends View {
       .when(enabled.includes("files"), el => el.child(panelButton("files", "Files", "mods/files/file.svg")))
       .when(enabled.includes("changes"), el => el.child(panelButton("changes", "Changes", "mods/changes/changes.svg")))
       .child(panelButton("linear", "Linear", "mods/linear/linear.svg"))
+      .child(panelButton("prs", "PRs", "mods/prs/prs.svg"))
       .child(panelButton("ci", "CI", "mods/ci/ci.svg"))
       .when(w?.buttons, el => el.child(button("minimize", w.platform === "windows" ? svg("mods/my-tabs/win-min.svg").size(16) : "−", () => run("window.minimize")))
         .child(button("maximize", w.platform === "windows" ? svg(`mods/my-tabs/${w.maximized ? "win-restore" : "win-max"}.svg`).size(16) : "□", () => run("window.maximize")))
