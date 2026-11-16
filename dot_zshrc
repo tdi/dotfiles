@@ -10,7 +10,7 @@ source $ZSH/oh-my-zsh.sh
 
 export ZPLUG_HOME=/opt/homebrew/opt/zplug
 source $ZPLUG_HOME/init.zsh
-
+[[ -f ~/.zshenv.secrets ]] && source ~/.zshenv.secrets
 
 zplug "mafredri/zsh-async", from:github
 # Only start a local ssh-agent when one isn't already forwarded (ForwardAgent)
@@ -75,6 +75,18 @@ compdef kubecolor=kubectl
 #   API_TIMEOUT_MS="300000" \
 #   claude --dangerously-skip-permissions --model glm-5.1 "$@"
 # }
+
+cc-glm-bit() {
+  ANTHROPIC_AUTH_TOKEN=$ZAI_API_KEY \
+  ANTHROPIC_BASE_URL="https://bitrouter.demo.internal.bitropy.io/anthropic" \
+  ANTHROPIC_CUSTOM_HEADERS="x-api-key: $BITROUTER_API_KEY" \
+  API_TIMEOUT_MS=3000000 \
+  ANTHROPIC_DEFAULT_SONNET_MODEL="glm-anthropic/glm-5.2" \
+  ANTHROPIC_DEFAULT_OPUS_MODEL="glm-anthropic/glm-5.2" \
+  ANTHROPIC_DEFAULT_HAIKU_MODEL="glm-anthropic/glm-5.2" \
+  CLAUDE_CODE_AUTO_COMPACT_WINDOW=1000000 \
+  claude --dangerously-skip-permissions "$@"
+}
 
 
 # cdtw() {
