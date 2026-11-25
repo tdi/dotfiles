@@ -5,6 +5,8 @@
 // initial in the top-left corner. Hover for the name, click to go there.
 // Keys: ⌥1–⌥9 (keys.json "alt-1": "agent-tiles.1") go to the tile with that number,
 // shown in its bottom-right corner. The numbers follow the order, so they move with it.
+// Pins: right-click a tile to pin it to the first row (at most 5, in pin order, ⌥1–⌥5);
+// right-click again to unpin. Pins are kept in shared.json.
 //
 // Coming back: when the window becomes active again after AWAY_MS, a "While you were
 // away" dialog lists what finished or got blocked meanwhile. The Dock badge shows how
@@ -21,6 +23,9 @@ const ago = (ms) => { const m = Math.round(ms / 60_000); return m < 1 ? "now" : 
 const TILE = 38;
 const GAP = 6;
 const RANK = { blocked: 3, done: 2, working: 1, idle: 0 };
+const MAX_PINS = 5;
+const PINS = "agent-tiles.pins";
+const pins = () => shared(PINS) ?? [];
 const NOISE = new Set(["feature", "feat", "fix", "bugfix", "hotfix", "chore", "refactor", "docs", "test"]);
 
 function find(node, id) {
@@ -41,7 +46,16 @@ function expandSidebar() {
   run("layout.resize", { id: "sidebar", px: shared("sidebar.width") ?? 268 });
 }
 
-// "my-shop-api" -> MS, "feature-eng-1712-…" -> E1, "portal" -> PO.
+// Pin or unpin; pins of agents that are gone are dropped here, not while drawing
+// (at startup agents() can be briefly empty).
+function togglePin(address) {
+  const live = new Set(agents().map((a) => a.address));
+  const kept = pins().filter((p) => live.has(p));
+  if (kept.includes(address)) setShared(PINS, kept.filter((p) => p !== address));
+  else if (kept.length < MAX_PINS) setShared(PINS, [...kept, address]);
+}
+
+// "my-shop-api" -> MS, "feature-eng-123-…" -> E1, "backend" -> BA.
 export function initials(name) {
   const words = (name ?? "").split(/[\s\-_/.]+/).filter(Boolean);
   while (words.length > 1 && NOISE.has(words[0].toLowerCase())) words.shift();
@@ -139,8 +153,11 @@ export default class AgentTiles extends View {
     // What needs you first (blocked, then done, longest waiting first), then by activity:
     // the agent whose status changed most recently (higher seq) leads.
     const waited = (a) => this.since[a.address]?.at ?? 0;
-    const list = [...all].sort((x, y) => (NEEDS[y.status] ?? 0) - (NEEDS[x.status] ?? 0)
+    const sorted = [...all].sort((x, y) => (NEEDS[y.status] ?? 0) - (NEEDS[x.status] ?? 0)
       || (NEEDS[x.status] ? waited(x) - waited(y) : 0) || y.seq - x.seq);
+    // Pinned agents lead, in pin order, as the first row.
+    const pinned = pins().map((p) => all.find((a) => a.address === p)).filter(Boolean);
+    const list = [...pinned, ...sorted.filter((a) => !pinned.includes(a))];
     setAgentOrder(list.map((a) => a.address));
     this.list = list;
     const needs = list.filter((a) => NEEDS[a.status]);
@@ -171,8 +188,10 @@ export default class AgentTiles extends View {
       const many = perSpace.get(a.space) > 1;
       // An agent on another machine has an address like "mini/t7": mark the tile with it.
       const machine = a.address.includes("/") ? a.address.split("/")[0] : null;
-      const tip = [i < 9 ? `⌥${i + 1}` : null, a.space_name, machine ? `on ${machine}` : null, many ? `tab ${a.tab_name || a.tab_index + 1}` : null,
-        need && at ? `${a.status === "blocked" ? "waiting" : "done"} ${ago(now - at)}` : a.status, a.title]
+      const isPinned = i < pinned.length;
+      const tip = [i < 9 ? `⌥${i + 1}` : null, isPinned ? "pinned" : null, a.space_name, machine ? `on ${machine}` : null, many ? `tab ${a.tab_name || a.tab_index + 1}` : null,
+        need && at ? `${a.status === "blocked" ? "waiting" : "done"} ${ago(now - at)}` : a.status, a.title,
+        isPinned ? "right-click: unpin" : pinned.length < MAX_PINS ? "right-click: pin" : `${MAX_PINS} pinned (max)`]
         .filter(Boolean)
         .join(" · ");
       return div()
@@ -195,6 +214,7 @@ export default class AgentTiles extends View {
         .hover((s) => s.bg(idle ? t.hover : need ? alpha(color, 0.8) : alpha(color, 0.45)))
         .tooltip(tip)
         .on_click(() => run("pane.focus", { pane: a.pane }))
+        .on_mouse_down("right", () => togglePin(a.address))
         .child(label)
         // Blocked: a ring pulsing around the tile, so it's seen from across the room.
         .when(a.status === "blocked", (el) =>
@@ -219,12 +239,17 @@ export default class AgentTiles extends View {
         );
     };
 
-    const grid = h_flex()
+    const row = (items, from) => h_flex()
       .flex_wrap()
       .gap(GAP + 2)
       .p(4)
       .when(narrow(), (el) => el.justify_center())
-      .children(list.map((a, i) => tile(a, i)));
+      .children(items.map((a, i) => tile(a, from + i)));
+    const rest = list.slice(pinned.length);
+    const grid = v_flex()
+      .when(pinned.length > 0, (el) => el.child(row(pinned, 0)))
+      .when(pinned.length > 0 && rest.length > 0, (el) => el.child(div().h(1).mx(4).my(4).bg(t.border)))
+      .when(rest.length > 0, (el) => el.child(row(rest, pinned.length)));
 
     return v_flex()
       .size_full()
